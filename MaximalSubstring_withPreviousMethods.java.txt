@@ -1,0 +1,192 @@
+/**
+ * A substring $v$ of a text $s$. We denote with $suf(v)$ the string that satisfies
+ * $v = a \cdot suf(v), a \in \Sigma$, and with $serialized(v)$ the binary string that
+ * represents $v$ in a bit stream. This object does not contain any character information,
+ * but just constants, string length, and serialization/deserialization functions.
+ *
+ * This object and its subclasses are typically used as reusable containers to load
+ * information from a bit stream, manipulate it, and append it back to the stream. A
+ * typical program needs just few instances of this object at any given time.
+ */
+public class MaximalSubstring {
+	/**
+	 * Maximum number of bits to encode a pointer and string length in $serialized(v)$
+	 */
+	protected static final int MAX_BITS_POINTER = 64;
+	protected static final int MAX_BITS_LENGTH = 64;
+
+	protected final int ALPHABET_LENGTH, LOG2_ALPHABET_LENGTH, LOG2_LOG2_ALPHABET_LENGTH;
+	protected final int TEXT_LENGTH, LOG2_TEXT_LENGTH;
+	protected final double HALF_TEXT_LENGTH, ONE_OVER_LOG_TEXT_LENGTH;
+
+	protected static final int N_INTERVALS;
+
+	/**
+	 * Index of the first bit of $serialized(v)$ in the bit stream
+	 */
+	public long address;
+
+	/**
+	 * Index of the first bit of $serialized(suf(v))$ in the bit stream
+	 */
+	public long suffix;
+
+	/**
+	 * $|v|$
+	 */
+	public long length;
+
+	/**
+	 * Intervals in the $BWT_s$ of a text $s$ used to implement basic navigation in the
+	 * suffix-link tree using just $BWT_s$:
+	 * $intervals[0] = (i_w,j_w)_s$;
+	 * $intervals[1+c] = (i_{wc},j_{wc})_s, c \in [0,|\Sigma|-1]$;
+	 * $intervals[1+|\Sigma|+c] = (i_{prefix(w)c},j_{prefix(w)c})_s, c \in [0,|\Sigma|-1]$.
+	 */
+	public long[][] intervals;
+
+	public boolean isRightMaximal;
+	public boolean isRightExtensionOfRightMaximal;
+
+
+	public Substring(int alphabetLength, int log2alphabetLength, int textLength, int log2textLength) {
+		ALPHABET_LENGTH=alphabetLength;
+		LOG2_ALPHABET_LENGTH=log2alphabetLength;
+		LOG2_LOG2_ALPHABET_LENGTH=Utils.log2(log2alphabetLength);
+		TEXT_LENGTH=textLength;
+		LOG2_TEXT_LENGTH=log2textLength;
+		HALF_TEXT_LENGTH=(TEXT_LENGTH+1d)/2d;
+		ONE_OVER_LOG_TEXT_LENGTH=1d/Math.log(textLength);
+		N_INTERVALS=1+(alphabetLength<<1);
+		intervals = new long[N_INTERVALS][2];
+	}
+
+
+	/**
+	 * Generates new $Substring$ objects
+	 */
+	public static final Substring getInstance(int alphabetLength, int log2alphabetLength, int textLength, int log2textLength) {
+		return new Substring(alphabetLength,log2alphabetLength,textLength,log2textLength);
+	}
+
+
+	public boolean exists() {
+		return intervals[0][1]>=intervals[0][0];
+	}
+
+
+	public int rightContext() {
+		int out = 0;
+		for (int c=0; c<alphabetLength; c++) {
+			if (intervals[1+c][1]>=intervals[1+c][0]) out++;
+		}
+		return out;
+	}
+
+
+	public int rightContextOfPrefix() {
+		int out = 0;
+		for (c=0; c<alphabetLength; c++) {
+			if (intervals[1+alphabetLength+c][1]>=intervals[1+alphabetLength+c][0]) out++;
+		}
+		return out;
+	}
+
+
+	public boolean shouldBeExtendedLeft() {
+		return rightContext()>1||rightContextOfPrefix()>1;
+	}
+
+
+	public void signal() {
+
+	}
+
+
+
+
+
+
+
+
+
+	/**
+	 * @return an \emph{upper bound} on the number of bits required to serialize any
+	 * instance of this class.
+	 */
+	public static int serializedSize() {
+		return MAX_BITS_POINTER+MAX_BITS_LENGTH+LOG2_TEXT_LENGTH*(N_INTERVALS<<1);
+	}
+
+
+	/**
+	 * Appends to $stack$ the serialized representation of $v$.
+	 * Remark: this method overwrites $address$.
+	 */
+	public void serialize(Stack stack) {
+		address=stack.length();
+		final int log2address = address==0?MAX_BITS_POINTER:Utils.log2(address);
+		stack.push(suffix,log2address);
+		stack.push(length,LOG2_TEXT_LENGTH);
+		for (int i=0; i<N_INTERVALS; i++) {
+			stack.push(intervals[i][0],LOG2_TEXT_LENGTH);
+			stack.push(intervals[i][1],LOG2_TEXT_LENGTH);
+		}
+	}
+
+
+	/**
+	 * Reads $v$ from $stack$ starting at the current pointer. At the end of the
+	 * process, the pointer is located at the first bit that follows $serialized(v)$.
+	 *
+	 * Remark: the procedure assumes that the pointer is indeed positioned at the
+	 * beginning of $serialized(v)$ in $stack$.
+	 */
+	public void deserialize(Stack stack) {
+		address=stack.getPosition();
+		final int log2address = address==0?MAX_BITS_POINTER:Utils.log2(address);
+		suffix=stack.read(log2address);
+		length=stack.read(LOG2_TEXT_LENGTH);
+		for (int i=0; i<N_INTERVALS; i++) {
+			intervals[i][0]=stack.read(LOG2_TEXT_LENGTH);
+			intervals[i][1]=stack.read(LOG2_TEXT_LENGTH);
+		}
+	}
+
+
+	/**
+	 * Assume that the pointer in $stack$ is currently at the beginning of a substring.
+	 * The procedure advances the pointer to the beginning of the following substring.
+	 *
+	 * @return the number of bits to encode pointers in $serialized(v)$.
+	 */
+	public int skip(Stack stack) {
+		final long address = stack.getPosition();
+		final int log2address = address==0?MAX_BITS_POINTER:Utils.log2(address);
+		stack.skip(log2address);
+		stack.skip(LOG2_TEXT_LENGTH);
+		stack.skip(N_INTERVALS*LOG2_TEXT_LENGTH);
+		return log2address;
+	}
+
+
+	/**
+	 * Initializes all the variables of this object, except $address$, from those of
+	 * $suffix$.
+	 *
+	 * @param suffix one-symbol suffix of $v$.
+	 */
+	public final void initFromSuffix(Substring suffix) {
+		this.suffix=suffix.address;
+		length=suffix.length+1;
+	}
+
+
+	public void print() {
+		System.out.println("-------");
+		System.out.println("address="+address);
+		System.out.println("suffix="+suffix);
+		System.out.println("length="+length);
+	}
+
+}

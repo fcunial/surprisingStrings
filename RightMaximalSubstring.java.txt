@@ -1,0 +1,70 @@
+/**
+ * Instructs $SubstringIterator$ to visit only substrings $w$ that are either
+ * right-maximal, or such that $u$ is right-maximal, where $w = u \cdot v$ and
+ * $|v| \leq \tau$. $intervals[1+alphabetLength*(1+h)+c]$ contains the interval of
+ * $pref_{h+1}(v) \cdot c$ for all $c \in \Sigma$, where $pref_x(v)$ is the length-$x$
+ * prefix of $v$.
+ */
+public abstract class RightMaximalSubstring extends Substring {
+
+	private static final int TAU = 1;
+	private static final int LOG2_TAU = Utils.log2(TAU);
+
+	/**
+	 * Value $|v|$ in the decomposition $w = u \cdot v$, where $u$ is the longest
+	 * right-maximal prefix of $w$, or $-1$ if no such decomposition exists for
+	 * $|v| \leq TAU$.
+	 */
+	protected int distance;
+
+
+	protected RightMaximalSubstring(int alphabetLength, int log2alphabetLength, int textLength, int log2textLength) {
+		this.alphabetLength=alphabetLength;
+		this.log2alphabetLength=log2alphabetLength;
+		this.textLength=textLength;
+		this.log2textLength=log2textLength;
+		nIntervals=1+alphabetLength*(1+TAU);
+		intervals = new long[nIntervals][2];
+	}
+
+
+	protected static Substring getInstance(int alphabetLength, int log2alphabetLength, int textLength, int log2textLength) {
+		return new RightMaximalSubstring(alphabetLength,log2alphabetLength,textLength,log2textLength);
+	}
+
+
+	protected void init(Substring suffix) {
+		super.init(suffix);
+
+		// Right-maximal
+		int rightContext, c, h, hPlusOneTimesAlphabetLength;
+		rightContext=0;
+		for (c=0; c<alphabetLength; c++) {
+			if (intervals[1+c][1]>=intervals[1+c][0]) rightContext++;
+		}
+		if (rightContext>1) {
+			distance=0;
+			return;
+		}
+		// Right-extension of right-maximal
+		hPlusOneTimesAlphabetLength=alphabetLength;
+		for (h=0; h<TAU; h++) {
+			rightContext = 0;
+			for (c=0; c<alphabetLength; c++) {
+				if (intervals[1+hPlusOneTimesAlphabetLength+c][1]>=intervals[1+hPlusOneTimesAlphabetLength+c][0]) rightContext++;
+			}
+			if (rightContext>1) {
+				distance=h+1;
+				return;
+			}
+			hPlusOneTimesAlphabetLength+=alphabetLength;
+		}
+		distance=-1;
+	}
+
+
+	protected boolean shouldBeExtendedLeft() {
+		return distance!=-1;
+	}
+
+}

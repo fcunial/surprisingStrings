@@ -1,0 +1,455 @@
+
+
+
+For debugging:
+
+
+
+<blockwiseBWT>:
+
+long sum = 0L;
+for (i=0; i<=nSplitters; i++) sum+=blockSizes[i].get();
+if (sum+nSplitters!=stringLength) {
+	System.err.println("!!! sum of block sizes + nSplitters = "+(sum+nSplitters)+" != "+stringLength);
+	System.exit(1);
+}
+System.err.println();
+for (i=0; i<nSplitters; i++) System.err.print("splitters["+i+"]="+splitters_bySuffix.getElementAt(i)+" ");
+System.err.println();
+
+
+System.err.println("splitters.push("+splitters_bySuffix.getElementAt(i-1)+")");
+
+System.err.println("blockStarts.setElement("+blockStart+")");
+
+System.err.println("blockStarts.setElement("+blockStart+")");
+
+System.err.println("blockBoundaries.setElement("+blockStarts.getElementAt(i)+")");
+
+if (bwt==null) System.err.println("nSplitters="+nSplitters+" localBlockCounts.length="+localBlockCounts.length);
+
+
+
+<HuffmanWaveletTree.java>:
+
+if (bitVectors[alphabetLength-2].length()!=stringLength) {
+	System.err.println("HUFFMAN ERROR 1");
+	System.exit(1);
+}
+
+if (rankDataStructures[alphabetLength-2].originalLength!=stringLength) {
+	System.err.println("HUFFMAN ERROR 2");
+	System.exit(1);
+}
+
+
+
+
+<SubstringIterator.java>:
+
+for (int k=0; k<nBlocks-1; k++) {
+	if (k!=dollar[1] && waveletTrees[k].rankDataStructures[alphabetLength-2].originalLength!=blockStarts.getElementAt(k+1)-blockStarts.getElementAt(k)) {
+		System.err.println("ERROR: waveletTrees["+k+"].rankDataStructures["+(alphabetLength-2)+"].originalLength="+waveletTrees[k].rankDataStructures[alphabetLength-2].originalLength+" != "+(blockStarts.getElementAt(k+1)-blockStarts.getElementAt(k)));
+		System.exit(1);
+	}
+}
+if (nBlocks-1!=dollar[1] && waveletTrees[nBlocks-1].rankDataStructures[alphabetLength-2].originalLength!=stringLength-blockStarts.getElementAt(nBlocks-1)) {
+	System.err.println("ERROR: waveletTrees["+(nBlocks-1)+"].rankDataStructures["+(alphabetLength-2)+"].originalLength="+waveletTrees[nBlocks-1].rankDataStructures[alphabetLength-2].originalLength+" != "+(stringLength-blockStarts.getElementAt(nBlocks-1)));
+	System.exit(1);
+}
+
+
+for (i=0; i<alphabetLength; i++) System.err.print("C["+i+"]="+C[i]+" ");
+System.err.println();
+for (i=0; i<nBlocks; i++) System.err.print("blockStarts["+i+"]="+blockStarts.getElementAt(i)+" ");
+System.err.println();
+for (i=0; i<nBlocks; i++) {
+	for (j=0; j<alphabetLength; j++) System.err.print("blockCounts["+i+"]["+j+"]="+blockCounts[i].getElementAt(j)+" ");
+	System.err.println();
+}
+System.err.println("dollarPosition="+dollar[0]+", dollarBlock="+dollar[1]+", dollarOffsetInBlock="+dollar[2]);
+
+
+
+for (i=1; i<stringLength; i++) {
+	j=(int)blockBoundaries.rank(i);
+	if (blockStarts.getElementAt(j-1)>i) {
+		System.err.println("blockBoundaries.rank("+i+") = "+j);
+		System.err.println("blockStarts.getElementAt(blockBoundaries.rank("+i+")-1) = "+blockStarts.getElementAt(j-1)+" > "+i);
+		System.exit(1);
+	}
+}
+
+System.err.println("popped ("+w.bwtIntervals[0][0]+","+w.bwtIntervals[0][1]+")");
+
+
+System.err.println("... extending ("+w.bwtIntervals[0][0]+","+w.bwtIntervals[0][1]+") ...");
+
+
+for (i=0; i<nPositions; i++) System.err.println("// positions["+i+"].position="+positions[i].position+" positions["+i+"].tree="+positions[i].tree);
+
+System.err.println("// tree "+previousTree+(previousTree==dollar[1]?"(dollar tree)":""));
+
+System.err.print("multirank ");
+for (i=1; i<=windowSize; i++) System.err.print("(tree="+previousTree+",start="+blockStarts.getElementAt(previousTree)+",localPos="+multirankStack[0][i]+") ");
+System.err.println();
+
+
+for (c=0; c<alphabetLength; c++) {
+	for (i=0; i<windowSize; i++) System.err.println("multirankOutput["+c+"]["+positions[windowFirst+i].position+"]="+multirankOutput[c][i]);
+}
+
+
+System.err.println("// tree "+previousTree+(previousTree==dollar[1]?"(dollar tree)":""));
+
+
+System.err.print("multirank ");
+for (i=1; i<=windowSize; i++) System.err.print("(tree="+previousTree+",start="+blockStarts.getElementAt(previousTree)+",localPos="+multirankStack[0][i]+") ");
+System.err.println();
+
+
+for (c=0; c<alphabetLength; c++) {
+	for (i=0; i<windowSize; i++) System.err.println("multirankOutput["+c+"]["+positions[windowFirst+i].position+"]="+multirankOutput[c][i]);
+}
+
+
+long backup = stack.getPosition();
+System.err.println("--- Stack after "+nExtensions+" extensions ---");
+stack.setPosition(0L);
+while (stack.getPosition()<stack.length()) {
+	w.read(stack);
+	System.err.println((backup==w.stackPointers[0]?">":"")+w.stackPointers[0]+": ("+w.bwtIntervals[0][0]+","+w.bwtIntervals[0][1]+")"+(w.hasBeenExtended?" extended":""));
+}
+stack.setPosition(backup);
+
+
+
+System.err.println("stack.getPosition()==0, so exiting the extendLeft while loop");
+
+
+
+
+
+
+
+----------------------------------
+
+if (rightSplitter!=0) {
+					leftSplitterSuffix=splitters.getElementAt(rightSplitter-1);
+					if (leftSplitterSuffix!=0) bwtBlock.push(string.getElementAt(leftSplitterSuffix-1));
+					else {
+						bwtBlock.push(0);
+						dollarPosition.set(pointer);
+					}
+					pointer++;
+				}
+
+
+
+if (rightSplitter!=0) {
+					leftSplitterSuffix=splitters.getElementAt(rightSplitter-1);
+					if (leftSplitterSuffix!=0) {
+						c=string.getElementAt(leftSplitterSuffix-1);
+						bwtBlock.push(c);
+						localBlockCounts[rightSplitter].incrementElementAt(c);
+					}
+					else {
+						dollarPosition.set(pointer);
+						dollarBlock.set(rightSplitter);
+						dollarOffset.set(0);
+					}
+					pointer++;
+				}
+
+
+
+----------------------------------
+
+
+long totalBits = 0;
+long correctBits = 0;
+for (i=0; i<alphabetLength-1; i++) {
+	correctBits+=codeLengths[i]*counts.getElementAt(i);
+	totalBits+=nBits[i];
+}
+if (totalBits!=correctBits) {
+	System.err.println("ERROR!!!");
+	System.exit(1);
+}
+
+
+----------------------------------
+
+
+
+// Copying the rest of $donorStack$ to $newDonorStack$ and quitting
+do {
+	w.stackPointers[1]=newDonor_previousSubstringAddress;
+	for (j=2; j<w.nPointers; j++) {
+		oldPointer=w.stackPointers[j];
+		if (oldPointer<=addressTranslator[0][addressTranslator_last]) w.stackPointers[j]=addressTranslator[1][Arrays.binarySearch(addressTranslator[0],0,addressTranslator_last,oldPointer)];
+		else w.stackPointers[j]=addressTranslator[1][addressTranslator_last]+oldPointer-addressTranslator[0][addressTranslator_last];
+	}
+	w.push(newDonorStack);
+	newDonor_previousSubstringAddress=w.stackPointers[0];
+	w.read(donorStack);
+} while (donorStack.getPosition()<donorStackLength);
+
+
+
+
+----------------------------------
+
+dollarBlock, dollarOffset;
+
+
+
+
+
+this.dollarBlock=dollarBlock;
+this.dollarOffset=dollarOffset;
+
+
+-----------------------------------
+
+
+System.out.println("Original alphabet:");
+for (i=0; i<alphabetLength; i++) {
+	System.out.println(alphabet[i]+" "+frequencies[i]);
+}
+System.out.println("Sorted alphabet:");
+for (i=0; i<alphabetLength; i++) {
+	System.out.println(sortedAlphabet[i]+" "+sortedFrequencies[i]);
+}
+
+
+System.out.println("Topology, nodes: (leftChild,rightChild,parent)");
+for (i=0; i<leftChild.length; i++) System.out.print("("+leftChild[i]+","+rightChild[i]+","+nodeParent[i]+") ");
+System.out.println();
+System.out.println("Topology, leaves: (parent)");
+for (i=0; i<alphabetLength; i++) System.out.print("("+leafParent[i]+") ");
+System.out.println();
+
+
+System.out.println("Codes:");
+for (i=0; i<alphabetLength; i++) {
+	for (j=codeLengths[i]-1; j>=0; j--) System.out.print(codes[i][j]?"1":"0");
+	System.out.println();
+}
+
+System.out.println("node"+node+".rank("+stack[currentBlock][1]+")="+ones[0]+" rank("+stack[currentBlock][2]+")="+ones[1]);
+
+
+System.out.println("Stack:");
+for (i=0; i<stack.length; i++) {
+	for (int j=0; j<stack[i].length; j++) System.out.print(stack[i][j]+" ");
+	System.out.println();
+}
+
+
+
+
+-----------------------------
+
+
+A possible alternative way to parallelize the final code: collect rank positions for each block,
+ * then perform multirank in parallel on each block? This is problematic because adds a
+ * barrier for collection and waiting, and it likely requires many positions to be effective,
+ * leading to a blowup in space...
+
+
+
+-----------------------------
+
+
+Alignment of bit vectors to cache blocks of 2^k bits: is it useful in our case?
+ * Would avoid two cache misses when loading some data rather than just one.
+
+
+Loop unrolling? Avoids checking a condition multiple times... see all other techniques
+ * described by bader.
+
+
+Add 64-bit support everywhere, most notably in intarray.
+
+
+
+----------------------------
+
+System.out.print(cumulativeSize+" ");
+
+
+
+System.out.println();
+System.out.println("Original block sizes: (blockSize="+blockSize+")");
+int myMax=0;
+for (i=0; i<=nSplitters; i++) {
+	System.out.print(blockSizes[i]+" ");
+	if (blockSizes[i].get()>myMax) myMax=blockSizes[i].get();
+}
+System.out.println();
+System.out.println("maxBlockSize="+maxBlockSize+" max of single blocks="+myMax);
+
+
+----------------------------
+
+
+
+System.out.println("Size of blocks:");
+		for (i=0; i<nSplitters; i++) System.out.print(blockSizes[i].get()+" ["+splitters_bySuffix.getElementAt(i)+"] ");
+		System.out.println(blockSizes[nSplitters].get());
+
+
+System.out.println("Final splitters: (blockSize="+blockSize+")");
+		for (i=0; i<nSplitters; i++) System.out.print("["+splitters.getElementAt(i)+"] ");
+		System.out.println();
+
+
+
+
+
+
+// Checking correctness of size computation
+// 		size=nSplitters;
+//  		for (i=0; i<=nSplitters; i++) size+=blockSizes[i].get();
+//  		if (size!=stringLength) {
+//  			System.err.println("ERROR: Cumulative block size: "+size+", stringLength: "+stringLength+", nSplitters="+nSplitters);
+//  			System.exit(1);
+//  		}
+// 		return null;
+
+
+
+
+
+
+
+
+
+
+
+This process is very expensive (linear in $stringLength$), and then it
+		// is repeated in the BWT to assign suffixes to the final blocks. We could speed
+		// this process up by:
+		// 1. using only some randomly sampled suffixes of $string$, and extrapolating the
+		// real sizes from the estimates;
+		// 2. storing the position of some suffixes in the temporary blocks, rather than
+		// just the size of such blocks.
+
+
+
+
+
+
+
+leftRightCache = new IntArray((nSplitters-2)<<1,log2stringLength,true);
+		left=splitters.getElementAt(0);
+		right=splitters.getElementAt(nSplitters-1);
+		lcp=0;
+		while (left+lcp<stringLength && right+lcp<stringLength && string.getElementAt(left+lcp)==string.getElementAt(right+lcp)) lcp++;
+		cacheBuildingCounter=0;
+		cacheBuildingStack = new IntArray((nSplitters-2)*3,log2stringLength);
+		cacheBuildingStack.push(0);
+		cacheBuildingStack.push(nSplitters-1);
+		cacheBuildingStack.push(lcp);
+		mutex.n=0;
+		for (i=0; i<nThreads; i++) (new CacheBuildingThread()).start();
+		tmp=0;
+		synchronized(cacheBuildingStack) { tmp=cacheBuildingCounter; }
+		if (tmp<nSplitters-2) {
+			synchronized(mutex) {
+				try { mutex.wait();	}
+				catch(InterruptedException e) {
+					e.printStackTrace();
+					System.exit(1);
+				}
+			}
+		}
+		cacheBuildingStack.deallocate();
+		// We don't set $cacheBuildingStack=null$ here because
+		// $synchronized(cacheBuildingStack)$ might be required by a $CacheBuildingThread$
+		// that is still running.
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Building LCP arrays for $string[low,string.length()-1]$ and
+		// $string[high,string.length()-1]$.
+		if (low>=0) {
+			mLow=stringLength-low;
+			lcpLow = new IntArray(mLow,mLow>1?Utils.log2(mLow):1);
+			string.buildLcpArray(low,lcpLow);
+		}
+		if (high>=0) {
+			mHigh=stringLength-high;
+			lcpHigh = new IntArray(mHigh,mHigh>1?Utils.log2(mHigh):1);
+			string.buildLcpArray(high,lcpHigh);
+		}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+CHECKING THE RESULT OF INTROSORT INSIDE PROCEDURE SORT:
+
+long[] cachePrime=new long[nElements];
+for (i=0; i<nElements; i++) cachePrime[i]=string.load(array.getElementAt(i)<<string.log2BitsPerInt);
+IntArray arrayPrime = new IntArray(nElements,array.bitsPerInt,true);
+for (i=0; i<nElements; i++) arrayPrime.setElementAt(i,array.getElementAt(i));
+IntArray startPrime = new IntArray(nElements,1,true);
+IntArray endPrime = new IntArray(nElements,1,true);
+quicksort(arrayPrime,0,nElements,0,0,string,cachePrime,Integer.MAX_VALUE,1,startPrime,endPrime);
+
+...
+
+for (i=0; i<nElements; i++) {
+	if (array.getElementAt(i)!=arrayPrime.getElementAt(i)) {
+		System.err.println("!!!!!!!!!! ERROR AT POSITION "+i);
+		System.exit(1);
+	}
+}
+
+
+
+
+
+
+
+
+long[] cachePrime=new long[nElements];
+for (i=0; i<nElements; i++) cachePrime[i]=string.load(array.getElementAt(i)<<string.log2BitsPerInt);
+IntArray arrayPrime = new IntArray(nElements,array.bitsPerInt,true);
+for (i=0; i<nElements; i++) arrayPrime.setElementAt(i,array.getElementAt(i));
+insertionSort(arrayPrime,0,nElements,string,cachePrime);
+
+...
+
+for (i=0; i<nElements; i++) {
+	if (array.getElementAt(i)!=arrayPrime.getElementAt(i)) {
+		System.err.println("!!!!!!!!!! ERROR AT POSITION "+i);
+		System.exit(1);
+	}
+}
+
+
+
+

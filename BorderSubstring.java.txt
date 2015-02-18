@@ -1,0 +1,379 @@
+import java.util.Arrays;
+
+/**
+ * A substring that can compute border information from its suffixes. See
+ * \cite{Efficient_detection_of_unusual_words} for notation and algorithmics.
+ */
+public abstract class BorderSubstring extends RightMaximalSubstring {
+	/**
+	 * A representation of $right_v=\{(a,a[v) : a \in \Sigma, a[v \neq \epsilon\}$,
+	 * sorted by increasing $a$. $rightPointers[i]$ is the address of
+	 * $serialized(rightCharacters[i][v)$ in the bit stream. $longestBorderCharacter$ is
+	 * the symbol $a \in \Sigma$ with largest $|a[v|$ in $right_v$.
+	 */
+	public long rightLength;
+	public long longestBorderCharacter;
+	public final long[] rightCharacters;
+	public final long[] rightPointers;
+	public long longestBorderLength;
+
+
+	public BorderSubstring(int alphabetLength, int log2alphabetLength, int textLength, int log2textLength) {
+		super(alphabetLength,log2alphabetLength,textLength,log2textLength);
+		rightCharacters = new long[alphabetLength];
+		rightPointers = new long[alphabetLength];
+	}
+
+
+	public static int serializedSize(int alphabetLength, int log2alphabetLength) {
+		return Substring.serializedSize()+1+log2alphabetLength+log2alphabetLength+alphabetLength*(log2alphabetLength+MAX_BITS_POINTER);
+	}
+
+
+
+
+	// ----------------- SERIALIZATION/DESERIALIZATION PROCEDURES ------------------------
+	public void serialize(Stack stack) {
+		super.serialize(stack);
+		if (rightLength==0) {
+			stack.push(0L,1);
+			return;
+		}
+		int log2address = address==0?MAX_BITS_POINTER:Utils.log2(address);
+		stack.push(1L,1);
+		stack.push(longestBorderCharacter,LOG2_ALPHABET_LENGTH);
+		stack.push(rightLength,LOG2_ALPHABET_LENGTH);
+		for (int i=0; i<rightLength; i++) {
+			stack.push(rightCharacters[i],LOG2_ALPHABET_LENGTH);
+			stack.push(rightPointers[i],log2address);
+		}
+	}
+
+
+	/**
+	 * Remark: there is no practical performance gain in creating shallower versions of
+	 * this procedure that skip over, rather than read, just few variables.
+	 */
+	public void deserialize(Stack stack) {
+		super.deserialize(stack);
+		if (stack.read(1)==0L) {
+			rightLength=0;
+			longestBorderCharacter=-1;
+			return;
+		}
+		final int log2address = address==0?MAX_BITS_POINTER:Utils.log2(address);
+		longestBorderCharacter=stack.read(LOG2_ALPHABET_LENGTH);
+		rightLength=stack.read(LOG2_ALPHABET_LENGTH);
+		if (rightLength==0L) rightLength=ALPHABET_LENGTH;
+		for (int i=0; i<rightLength; i++) {
+			rightCharacters[i]=stack.read(LOG2_ALPHABET_LENGTH);
+			rightPointers[i]=stack.read(log2address);
+		}
+	}
+
+
+	public int skip(Stack stack) {
+		final int log2address = super.skip(stack);
+		if (stack.read(1)==1L) {
+			stack.skip(LOG2_ALPHABET_LENGTH);
+			long rightLength = stack.read(LOG2_ALPHABET_LENGTH);
+			if (rightLength==0L) rightLength=ALPHABET_LENGTH;
+			for (int i=0; i<rightLength; i++) {
+				stack.skip(LOG2_ALPHABET_LENGTH);
+				stack.skip(log2address);
+			}
+		}
+		return log2address;
+	}
+
+
+
+
+	// ------------------------------ BORDER PROCEDURES ----------------------------------
+	/**
+	 * Initializes all the variables of this object, except $address$, from those of
+	 * $suffix$. This procedure is IO-bound: it just deserializes a region of $stack$ that
+	 * is very close to the bottom, and copies an array.
+	 *
+	 * Remark: under the assumption that longest borders are generally short, we expect
+	 * the bottom of $stack$ to be accessed frequently, and portions of it to be cached by
+	 * the processor. Creating a \emph{software cache} of frequently used $BorderSubstring$
+	 * objects would likely remove just the time to deserialize objects from $stack$,
+	 * which should be small anyway because of caching.
+	 *
+	 * @param a first character of $v$;
+	 * @param suffix one-symbol suffix of $v$;
+	 * @param stack stack containing all suffixes of $v$, represented as
+	 * $BorderSubstring$s;
+	 * @param characterStack stack containing all the characters of $v$, from right to
+	 * left going from the bottom of $characterStack$ to the top of $characterStack$;
+	 * @param buffer scratch space; at the end of the procedure it contains $bord(v)$.
+	 */
+	public final void initFromSuffix(long a, BorderSubstring suffix, Stack stack, Stack characterStack, BorderSubstring buffer) {
+		final boolean found;
+		final long value;
+
+		this.suffix=suffix.address;
+		length=suffix.length+1;
+		if (length==1) {
+			// Base case: no border.
+			rightLength=0;
+			longestBorderCharacter=-1;
+			return;
+		}
+		found=suffix.getLongestBorderOfLeftExtension(a,stack,buffer);
+		if (!found) {  // $a[suf(v) = \epsilon$
+			characterStack.setPosition(0);
+			value=characterStack.read(LOG2_ALPHABET_LENGTH);  // First character from the right
+			if (value!=a) {
+				// Base case: no border.
+				longestBorderLength=0;
+				rightLength=0;
+				longestBorderCharacter=-1;
+				return;
+			}
+			// Base case: length-one longest border.
+			longestBorderLength=1;
+			longestBorderCharacter=characterStack.read(LOG2_ALPHABET_LENGTH);  // Second character from the right
+			rightLength=1;
+			rightCharacters[0]=longestBorderCharacter;
+			stack.setPosition(0);
+			skip(stack);
+			rightPointers[0]=stack.getPosition();  // Second substring in the stack
+			return;
+		}
+		longestBorderLength=buffer.length;
+		characterStack.setPosition(buffer.length<<LOG2_LOG2_ALPHABET_LENGTH);  // Character immediately following the longest border
+		longestBorderCharacter=characterStack.read(LOG2_ALPHABET_LENGTH);
+		rightArrayFromLongestBorder(buffer);
+	}
+
+
+	/**
+	 * Loads in $out$ the longest border of $av$, $a \in \Sigma$, if
+	 * $a \in rightCharacters$.
+	 *
+	 * @return FALSE if $a \notin rightCharacters$.
+	 */
+	private final boolean getLongestBorderOfLeftExtension(long a, Stack stack, BorderSubstring out) {
+		if (rightLength==0) return false;
+		final int i = Arrays.binarySearch(rightCharacters,0,(int)rightLength,a);
+		if (i<0) return false;
+		stack.setPosition(rightPointers[i]);
+		skip(stack);
+		out.deserialize(stack);
+		return true;
+	}
+
+
+	/**
+	 * Loads in $out$ the longest border of $v$.
+	 * @return FALSE if $v$ has no border.
+	 */
+	public final boolean getLongestBorder(Stack stack, BorderSubstring out) {
+		return getLongestBorderOfLeftExtension(longestBorderCharacter,stack,out);
+	}
+
+
+	/**
+	 * Builds $right_v$ from $right_{bord(v)}$, assuming that $longestBorderCharacter$ has
+	 * already been computed. The running time depends on $|right_v|$ rather than on the
+	 * potentially large $|\Sigma|$.
+	 */
+	private final void rightArrayFromLongestBorder(BorderSubstring longestBorder) {
+		final int from, to, length;
+		final int longestBorderRightLength;
+		int i;
+		longestBorderRightLength=(int)longestBorder.rightLength;
+		if (longestBorderRightLength==0) {
+			rightLength=1;
+			rightCharacters[0]=longestBorderCharacter;
+			rightPointers[0]=longestBorder.address;
+			return;
+		}
+		i=Arrays.binarySearch(longestBorder.rightCharacters,0,longestBorderRightLength,longestBorderCharacter);
+		if (i<0) {
+			i=-i-1;
+			from=i; to=i+1; length=longestBorderRightLength-i;
+			rightLength=longestBorderRightLength+1;
+		}
+		else {
+			from=i+1; to=i+1; length=longestBorderRightLength-i-1;
+			rightLength=longestBorderRightLength;
+		}
+		if (i>0) {
+			System.arraycopy(longestBorder.rightCharacters,0,rightCharacters,0,i);
+			System.arraycopy(longestBorder.rightPointers,0,rightPointers,0,i);
+		}
+		rightCharacters[i]=longestBorderCharacter;
+		rightPointers[i]=longestBorder.address;
+		if (from<longestBorderRightLength) {
+			System.arraycopy(longestBorder.rightCharacters,from,rightCharacters,to,length);
+			System.arraycopy(longestBorder.rightPointers,from,rightPointers,to,length);
+		}
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	// ----------------------------------- TESTING ---------------------------------------
+	public static void main(String[] args) {
+		testCorrectness();
+		//testStringsPerRegion();
+	}
+
+
+	/**
+	 * Setting $stringsPerRegion \geq 30$ is good for a random string on 4 characters.
+	 */
+	private static final void testStringsPerRegion() {
+		final int TEXT_LENGTH = 30000;
+		int stringsPerRegion, i;
+		double p;
+		long a, time;
+
+		for (stringsPerRegion=10; stringsPerRegion<100; stringsPerRegion+=10) {
+			String text = "";
+			for (i=0; i<TEXT_LENGTH; i++) {
+				p=Math.random();
+				if (p<0.25) text+='0';
+				else if (p<0.5) text+='1';
+				else if (p<0.75) text+='2';
+				else text+='3';
+			}
+			Stack stack = new Stack((BorderSubstring.serializedSize(4,2)*stringsPerRegion)>>>6);
+			Stack characterStack = new Stack(stringsPerRegion);
+			BorderSubstring top = new BorderSubstring(4,2,TEXT_LENGTH,32);
+			BorderSubstring suffix = new BorderSubstring(4,2,TEXT_LENGTH,32);
+			BorderSubstring buffer = new BorderSubstring(4,2,TEXT_LENGTH,32);
+			BorderSubstring tmp;
+			top.serialize(stack);
+			time=System.currentTimeMillis();
+			for (i=text.length()-1; i>=0; i--) {  // Inserting $test$ from right to left
+				if (text.charAt(i)=='0') a=0L;
+				else if (text.charAt(i)=='1') a=1L;
+				else if (text.charAt(i)=='2') a=2L;
+				else a=3L;
+				characterStack.push(a,2);
+				tmp=suffix; suffix=top; top=tmp;
+				top.initFromSuffix(a,suffix,stack,characterStack,buffer);  // Overwrites all variables in $top$
+				top.serialize(stack);  // Overwrites $address$
+			}
+			System.out.println("stringsPerRegion="+stringsPerRegion+", time="+(System.currentTimeMillis()-time));
+		}
+	}
+
+
+	private static final void testCorrectness() {
+		final int TEXT_LENGTH = 10000;
+		final int N_ITERATIONS = 10;
+		final int STRINGS_PER_REGION = 30;
+		boolean longestBorder, isBorder;
+		int i, j, t, length, nBorders;
+		long[] borders = new long[4];
+		long a;
+		double p;
+		BorderSubstring top, suffix, buffer, tmp;
+
+		for (t=0; t<N_ITERATIONS; t++) {
+			String text = "";
+			for (i=0; i<TEXT_LENGTH; i++) {
+				p=Math.random();
+				if (p<0.25) text+='0';
+				else if (p<0.5) text+='1';
+				else if (p<0.75) text+='2';
+				else text+='3';
+			}
+
+			// Testing
+			Stack stack = new Stack((BorderSubstring.serializedSize(4,2)*STRINGS_PER_REGION)>>>6);
+			Stack characterStack = new Stack(STRINGS_PER_REGION);
+			top = new BorderSubstring(4,2,TEXT_LENGTH,32);
+			suffix = new BorderSubstring(4,2,TEXT_LENGTH,32);
+			buffer = new BorderSubstring(4,2,TEXT_LENGTH,32);
+			top.serialize(stack);
+			//top.print();
+			for (i=text.length()-1; i>=0; i--) {  // Inserting $test$ from right to left
+				if (text.charAt(i)=='0') a=0L;
+				else if (text.charAt(i)=='1') a=1L;
+				else if (text.charAt(i)=='2') a=2L;
+				else a=3L;
+				characterStack.push(a,2);
+
+				// Computing borders using brute force
+				for (j=0; j<4; j++) borders[j]=-1;
+				for (length=1; length<text.length()-i; length++) {
+					isBorder=true;
+					for (j=0; j<length; j++) {
+						if (text.charAt(i+j)!=text.charAt(text.length()-length+j)) {
+							isBorder=false;
+							break;
+						}
+					}
+					if (isBorder) {
+						if (text.charAt(text.length()-length-1)=='0') borders[0]=length;
+						else if (text.charAt(text.length()-length-1)=='1') borders[1]=length;
+						else if (text.charAt(text.length()-length-1)=='2') borders[2]=length;
+						else borders[3]=length;
+					}
+				}
+
+				// Computing borders using recursion
+				tmp=suffix; suffix=top; top=tmp;
+				top.initFromSuffix(a,suffix,stack,characterStack,buffer);  // Overwrites all variables in $top$
+				top.serialize(stack);  // Overwrites $address$
+				//top.print();
+
+				// Checking correctness
+				nBorders=0;
+				for (j=0; j<4; j++) {
+					if (borders[j]!=-1) nBorders++;
+				}
+				if (top.rightLength!=nBorders) {
+					System.err.println("ERROR at suffix <"+text.substring(i)+">:");
+					System.err.println("rightLength="+top.rightLength+" (should be "+nBorders+")");
+					System.exit(1);
+				}
+				for (j=0; j<top.rightLength; j++) {
+					if (borders[(int)top.rightCharacters[j]]==-1) {
+						System.err.println("ERROR at suffix <"+text.substring(i)+">:");
+						System.err.println("character "+top.rightCharacters[j]+" should not have a border");
+						System.exit(1);
+					}
+					stack.setPosition(top.rightPointers[j]);
+					buffer.deserialize(stack);
+					if (buffer.length!=borders[(int)top.rightCharacters[j]]) {
+						System.err.println("ERROR at suffix <"+text.substring(i)+">:");
+						System.err.println("character "+top.rightCharacters[j]+" should have a border of length "+borders[(int)top.rightCharacters[j]]+" rather than "+buffer.length);
+						System.exit(1);
+					}
+				}
+			}
+		}
+		System.out.println("No errors found");
+	}
+
+
+	public void print() {
+		super.print();
+		System.out.println("rightLength="+rightLength);
+		if (rightLength!=0) {
+			System.out.println("longestBorderCharacter="+longestBorderCharacter);
+			for (int i=0; i<rightLength; i++) System.out.print("("+rightCharacters[i]+","+rightPointers[i]+") ");
+			System.out.println();
+		}
+	}
+
+}

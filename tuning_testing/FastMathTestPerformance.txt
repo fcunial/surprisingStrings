@@ -1,0 +1,23 @@
+Output of $FastMathTestPerformance.java$ (running times over multiple runs):
+
+StrictMath FastMath Math FastMath/Math StrictMath/Math
+log 171 33811 145 233.2 1.18
+log10 161 4768 98 48.7 1.64
+log1p 161 4893 283 17.3 0.57
+pow 349 10007 475 21.1 0.73
+exp 178 1386 281 4.9 0.63
+sin 170 3815 180 21.2 0.94
+asin 158 4205 303 13.9 0.52
+cos 169 3294 164 20.1 1.03
+acos 152 27441 290 94.6 0.52
+tan 204 4263 213 20.0 0.96
+atan 170 2372 290 8.2 0.59
+atan2 237 4188 407 10.3 0.58
+hypot 226 4141 405 10.2 0.56
+cbrt 191 1504 316 4.8 0.60
+sqrt 1153 182 77 2.4 14.97
+cosh 196 2217 337 6.6 0.58
+sinh 248 2274 336 6.8 0.74
+tanh 166 1439 344 4.2 0.48
+expm1 177 3512 330 10.6 0.54
+abs 587 320 91 3.5 6.45
