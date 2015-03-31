@@ -102,7 +102,7 @@ public class Stream {
 	 * last region is immediately deallocated if unused.
 	 *
 	 * Remark: the procedure assumes that $n \leq nBits$.
-	 * Remark: the random access pointer could be in an invalid position after $push$.
+	 * Remark: the random access pointer could be in an invalid position after $pop$.
 	 * This case is not explicitly checked.
 	 */
 	public final void pop(int n) {

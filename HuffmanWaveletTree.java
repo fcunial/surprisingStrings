@@ -2,28 +2,31 @@ import java.util.Arrays;
 
 /**
  * Simplistic implementation of a Huffman-shaped wavelet tree with pointers, using
- * Sebastiano Vigna's $Rank9$ data structure \cite{Broadword implementation of rank select
- * queries} to support rank operations inside a node.
+ * Sebastiano Vigna's $Rank9$ data structure \cite{vigna2008broadword} to support rank
+ * operations inside a node.
  *
  * Remark: We try to optimize time rather than space. We allow construction to use
  * $|s|(H_0(s)+1)$ bits of additional space, where $s$ is the input string, i.e. we don't
- * implement in-place algorithms like \cite{On wavelet tree construction}.
+ * implement in-place algorithms like \cite{tischler2011wavelet}.
  *
  * Remark: We assume that the alphabet is small. In this case, the Huffman-shaped wavelet
  * tree with pointers is among the best solutions both in space and in time for general
- * strings \cite{Practical rank-select queries over arbitrary sequences}, and it should
- * behave even better for blocks of the BWT. We don't implement the wavelet matrix
- * \cite{The wavelet matrix} because it is useful in practice only for large alphabets.
+ * strings \cite{claude2009practical}, and it should behave even better for blocks of the
+ * BWT. We don't implement the wavelet matrix \cite{claude2012wavelet} because it is
+ * useful in practice only for large alphabets.
  */
 public class HuffmanWaveletTree {
 
+	/*
+	 * The symbols that occur in $string$, sorted lexicographically.
+	 */
+	private final int[] alphabet;
 	private final int alphabetLength, log2AlphabetLength;
 
 	/**
 	 * Tree topology and rank data structures. A nonnegative value in $leftChild[i]$,
 	 * $rightChild[i]$ and $*Parent[i]$ is the position of the corresponding internal node
-	 * in the arrays. A negative value $c$ identifies symbol $-1-c$ in the
-	 * lexicographically sorted alphabet.
+	 * in the arrays. A negative value $c$ identifies position $-1-c$ in $alphabet$.
 	 */
 	private int[] leftChild, rightChild, nodeParent, leafParent;
 	protected Rank9[] rankDataStructures;
@@ -35,7 +38,8 @@ public class HuffmanWaveletTree {
 
 
 	/**
-	 * @param alphabet symbols that occur in $string$, sorted lexicographically;
+	 * @param alphabet only the distinct symbols that occur in $string$, sorted
+	 * lexicographically;
 	 * @param counts number of occurrences in $string$ of each symbol in $alphabet$.
 	 */
 	public HuffmanWaveletTree(IntArray string, int[] alphabet, IntArray counts) {
@@ -49,14 +53,25 @@ public class HuffmanWaveletTree {
 		IntArray[] bitVectors;
 
 		// Building tree topology and bit vectors
+		stringLength=string.length();
+		this.alphabet=alphabet;
 		alphabetLength=alphabet.length;
+		if (alphabetLength==1) {  // No need for a wavelet tree in this case
+			log2AlphabetLength=0;
+			codes=null;
+			codeLengths=null;
+			frequencies=null;
+			maxCodeLength=0;
+			bitVectors=null;
+			nBits=null;
+			return;
+		}
 		log2AlphabetLength=Utils.log2(alphabetLength);
 		codes = new boolean[alphabetLength][alphabetLength-1];
 		codeLengths = new int[alphabetLength];
 		frequencies = new float[alphabetLength];
-		stringLength=string.length();
 		for (i=0; i<alphabetLength; i++) frequencies[i]=((float)counts.getElementAt(i))/stringLength;
-		maxCodeLength=buildHuffmanCodes(alphabet,frequencies,codes,codeLengths);
+		maxCodeLength=buildHuffmanCodes(frequencies,codes,codeLengths);
 		frequencies=null;
 		bitVectors = new IntArray[alphabetLength-1];
 		nBits = new long[alphabetLength-1];
@@ -72,7 +87,7 @@ public class HuffmanWaveletTree {
 
 		// Pushing bits from $string$
 		for (il=0; il<stringLength; il++) {
-			j=string.getElementAt((int)il);
+			j=Arrays.binarySearch(alphabet,string.getElementAt((int)il));
 			length=codeLengths[j];
 			node=alphabetLength-2;
 			for (k=length-1; k>=0; k--) {
@@ -90,7 +105,6 @@ public class HuffmanWaveletTree {
 		rankDataStructures = new Rank9[alphabetLength-1];
 		for (i=0; i<alphabetLength-1; i++) {
 			rankDataStructures[i] = new Rank9(bitVectors[i]);
-			bitVectors[i].deallocate();  // Removes a link to the underlying array, but does not destroy the array itself.
 			bitVectors[i]=null;
 		}
 		bitVectors=null;
@@ -98,11 +112,10 @@ public class HuffmanWaveletTree {
 
 
 	/**
-	 * @param alphabet symbols in the alphabet, sorted lexicographically;
 	 * @param frequencies relative frequency of each symbol in $alphabet$; they are
 	 * assumed to sum to one;
 	 * @param codes output array that stores the Huffman code corresponding to each
-	 * element of $symbols$ at the end of the procedure, encoded as a *reversed* sequence
+	 * element of $alphabet$ at the end of the procedure, encoded as a *reversed* sequence
 	 * of booleans; all cells of $codes$ are assumed to be FALSE at the beginning;
 	 * representing a code as a sequence of booleans increases space (which is irrelevant
 	 * under the assumption that $alphabet$ is small), but makes access to bits faster;
@@ -111,7 +124,7 @@ public class HuffmanWaveletTree {
 	 * be zero at the beginning;
 	 * @return the maximum number in $codeLengths$.
 	 */
-	private final int buildHuffmanCodes(int[] alphabet, float[] frequencies, boolean[][] codes, int[] codeLengths) {
+	private final int buildHuffmanCodes(float[] frequencies, boolean[][] codes, int[] codeLengths) {
 		int i, j, leafQueueFront, nodeQueueFront, nodeQueueBack, address, node, child, maxCodeLength;
 		float nodeFrequency;
 		int[] stack, sortedAlphabet;
@@ -200,23 +213,62 @@ public class HuffmanWaveletTree {
 
 
 	/**
-	 * Computes the number of occurrences of every symbol in the alphabet before each
-	 * position of a list of distinct positions relative to $string$. The procedure
-	 * touches all nodes of the wavelet tree. All input positions are ranked at each node,
-	 * to limit cache misses.
+	 * @param position a valid position in $string$.
+	 * @return the character in $alphabet$ that equals $string[position]$.
+	 */
+	public final int access(long position) {
+		if (alphabetLength==1) return alphabet[0];
+		int node = alphabetLength-2;
+		int effectivePosition;
+		while (node>=0) {
+			effectivePosition=(((int)position)/64)*64 + (64-(((int)position)%64)-1);
+			if (rankDataStructures[node].bitVector.getElementAt(effectivePosition)==0) {
+				position-=rankDataStructures[node].rank(position);
+				node=leftChild[node];
+				if (node<0) return alphabet[-1-node];
+			}
+			else {
+				position=rankDataStructures[node].rank(position);
+				node=rightChild[node];
+				if (node<0) return alphabet[-1-node];
+			}
+		}
+		return -1;
+	}
+
+
+	/**
+	 * Computes the number of occurrences of every symbol in $[0..fullAlphabetLength]$
+	 * before each position of a list of distinct positions relative to $string$.
+	 * The procedure touches all nodes of the wavelet tree. At each node, all input
+	 * positions are ranked, to limit cache misses.
+	 *
+	 * Remark: $[0..fullAlphabetLength]$ is a superset of the alphabet of $string$ (stored
+	 * in $alphabet$), since $string$ could be a substring of a longer string, with
+	 * reduced alphabet.
 	 *
 	 * @param nPositions number of positions in $string$ to rank;
-	 * @param stack a temporary matrix with at least $alphabetLength-1$ rows and
+	 * @param stack a temporary matrix with at least $fullAlphabetLength-1$ rows and
 	 * $1+nPositions$ columns; the procedure assumes that the positions to be ranked are
-	 * written in increasing order in row 0, starting from index 1 (not zero); the content
-	 * of this matrix is altered by the procedure;
-	 * @param output output matrix with at least $alphabetLength$ rows and $nPositions$
-	 * columns; the alphabet is assumed to be sorted lexicographically;
+	 * written in increasing order in row 0, starting from index 1 (one, not zero); the
+	 * content of this matrix is altered by the procedure;
+	 * @param output output matrix with at least $fullAlphabetLength$ rows and
+	 * $nPositions$ columns; the alphabet is assumed to be sorted lexicographically; all
+	 * cell of $output$ are assumed to be zero;
 	 * @param ones a temporary array with at least $nPositions$ cells; the
 	 * content of this array is altered by the procedure.
 	 */
-	public final void multirank(int nPositions, long[][] stack, long[][] output, long[] ones) {
-		int i, currentBlock, lastBlock, node, address;
+	public final void multirank(int fullAlphabetLength, int nPositions, long[][] stack, long[][] output, long[] ones) {
+		int i, j, currentBlock, lastBlock, node, address;
+
+		// Characters that do not belong to $alphabet$ are already handled by the
+		// assumption that all cells of $output$ are zero.
+
+		// Handling characters that belong to $alphabet$
+		if (alphabetLength==1) {
+			for (j=0; j<nPositions; j++) output[alphabet[0]][j]=stack[0][j+1];
+			return;
+		}
 		stack[0][0]=alphabetLength-2;
 		currentBlock=0; lastBlock=0;
 		while (currentBlock<=lastBlock) {
@@ -224,7 +276,7 @@ public class HuffmanWaveletTree {
 			for (i=0; i<nPositions; i++) ones[i]=rankDataStructures[node].rank(stack[currentBlock][1+i]);
 			address=leftChild[node];
 			if (address<0) {
-				for (i=0; i<nPositions; i++) output[-1-address][i]=stack[currentBlock][1+i]-ones[i];
+				for (i=0; i<nPositions; i++) output[alphabet[-1-address]][i]=stack[currentBlock][1+i]-ones[i];
 			}
 			else {
 				lastBlock++;
@@ -232,13 +284,37 @@ public class HuffmanWaveletTree {
 				for (i=0; i<nPositions; i++) stack[lastBlock][1+i]=stack[currentBlock][1+i]-ones[i];
 			}
 			address=rightChild[node];
-			if (address<0) System.arraycopy(ones,0,output[-1-address],0,nPositions);
+			if (address<0) System.arraycopy(ones,0,output[alphabet[-1-address]],0,nPositions);
 			else {
 				lastBlock++;
 				stack[lastBlock][0]=address;
 				System.arraycopy(ones,0,stack[lastBlock],1,nPositions);
 			}
 			currentBlock++;
+		}
+	}
+
+
+	public void print() {
+		System.out.print("leftChild: ");
+		for (int i=0; i<alphabetLength-1; i++) System.out.print(leftChild[i]+" ");
+		System.out.println();
+
+		System.out.print("rightChild: ");
+		for (int i=0; i<alphabetLength-1; i++) System.out.print(rightChild[i]+" ");
+		System.out.println();
+
+		System.out.print("nodeParent: ");
+		for (int i=0; i<alphabetLength-1; i++) System.out.print(nodeParent[i]+" ");
+		System.out.println();
+
+		System.out.print("leafParent: ");
+		for (int i=0; i<alphabetLength; i++) System.out.print(leafParent[i]+" ");
+		System.out.println();
+
+		System.out.println("bitvectors: ");
+		for (int i=0; i<alphabetLength-1; i++) {
+			rankDataStructures[i].bitVector.printBits(); System.out.println();
 		}
 	}
 

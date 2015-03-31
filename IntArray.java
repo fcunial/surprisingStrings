@@ -121,7 +121,7 @@ public class IntArray {
 	public final void print() {
 		//System.out.println("bitsPerInt="+bitsPerInt+" nElements="+nElements);//+" lastCell="+lastCell+" lastOffset="+lastOffset);
 		//for (int i=0; i<nElements; i++) System.out.println(i+": "+getElementAt(i));
-		for (int i=0; i<nElements; i++) System.out.print(""+getElementAt(i));
+		for (int i=0; i<nElements; i++) System.out.print(getElementAt(i)+" ");
 		System.out.println();
 	}
 
@@ -263,33 +263,35 @@ public class IntArray {
 	 * interpreted as a sign by Java: removing it allows to implement lexicographic
 	 * comparisons of binary strings with the numerical operators $>$ and $<$.
 	 *
-	 * @return $0 \cdot v[i,i+63)$, assuming that $v[i]=1$ for all
-	 * $i \geq bitsPerInt*nElements$. This assumption simplifies cached LCP computations.
+	 * @return $0 \cdot v[i,i+63)$, assuming that $v[j]=0$ for all
+	 * $j \geq bitsPerInt*nElements$. This assumption simplifies cached LCP computations,
+	 * but it induces an infinite loop when sorting suffixes $(0^{bitsPerInt})^{x}$ and
+	 * $(0^{bitsPerInt})^{y}$: thus, the input array must not have a suffix longer than
+	 * one that consists only of zeros.
 	 */
 	public final long load63(int i) {
 		int cell = i>>>6;
 		int offset = i&Utils.LAST_6_BITS;
-		if (cell>lastCell || (cell==lastCell&&offset>=lastOffset)) return 0x7FFFFFFFFFFFFFFFL;
+		if (cell>lastCell || (cell==lastCell&&offset>=lastOffset)) return 0x0L;
 		if (offset==0) {
-			long out = array[cell]>>>1;
-			if (cell==lastCell) out|=Utils.shiftOnesRight[lastOffset+1];
-			return out;
+			long out = array[cell];
+			if (cell==lastCell) out&=Utils.shiftOnesLeft[64-lastOffset];
+			return out>>>1;
 		}
 		if (offset==1) {
 			long out = array[cell]&Utils.zeroSelectors1[63];
-			if (cell==lastCell) out|=Utils.shiftOnesRight[lastOffset];
+			if (cell==lastCell) out&=Utils.shiftOnesLeft[64-lastOffset];
 			return out;
 		}
-		long sixtyFourMinusOffset = 64-offset;
+		int sixtyFourMinusOffset = 64-offset;
 		long out = (array[cell]<<(offset-1))&Utils.zeroSelectors1[63];
 		if (cell<lastCell) {
 			out|=array[cell+1]>>>(sixtyFourMinusOffset+1);
 			if (cell==lastCell-1) {
 				int measure = 1+sixtyFourMinusOffset+lastOffset;
-				if (measure<64) out|=Utils.shiftOnesRight[measure];
+				if (measure<64) out&=Utils.shiftOnesLeft[64-measure];
 			}
 		}
-		else out|=Utils.shiftOnesRight[lastOffset-offset+1];
 		return out;
 	}
 
@@ -711,15 +713,15 @@ public class IntArray {
 	/**
 	 * Bit-parallel LCP starting from pre-loaded buffers. Assumes that the LCP is at most
 	 * $2^{31}-1$. Could be improved using e.g. a difference cover sample to handle long
-	 * LCPs \cite{Fast_BWT_in_small_space_by_blockwise_suffix_sorting}.
+	 * LCPs \cite{karkkainen2007fast}.
 	 *
 	 * @param xSmallerThanY $x<y$;
 	 * @param order TRUE=the most significant bit of the output is set to 1 if
-	 * $v[x,]>v[y,]$ in the lexicographic order, to 0 if $v[x,]<v[y,]$; the length of the
-	 * LCP is encoded in the remaining bits;
-	 * @param sixtyThreeBitBuffers TRUE=$bufferX=0 \cdot v[x,x+63)$,
-	 * $bufferY=0 \cdot v[y,y+63)$ ($v$ is assumed to be padded with an infinite number of
-	 * ones); FALSE=buffers contain 64 bits.
+	 * $v[x..]>v[y..]$ in the lexicographic order, to 0 if $v[x..]<v[y..]$; the length of
+	 * the LCP is encoded in the remaining bits;
+	 * @param sixtyThreeBitBuffers TRUE=$bufferX=0 \cdot v[x..x+63)$,
+	 * $bufferY=0 \cdot v[y..y+63)$ ($v$ is assumed to be padded with an infinite number
+	 * of zeros); FALSE=buffers contain 64 bits.
 	 */
 	private final int lcp(int xCell, int xOffset, int yCell, int yOffset, boolean xSmallerThanY, boolean order, long bufferX, long bufferY, boolean sixtyThreeBitBuffers) {
 		boolean xLexGreaterThanY = xSmallerThanY;

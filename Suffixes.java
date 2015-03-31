@@ -32,36 +32,37 @@ public class Suffixes {
 	/**
 	 * Sorts the interval of $array$ that starts at $firstSuffix$ and ends at
 	 * $firstSuffix+nSuffixes-1$ in lexicographic order, assuming that its elements are
-	 * suffixes of $string \cdot \$$. This procedure is sequential and recursive, and it
-	 * sorts in place: no additional space is used except for the recursion stack. Thanks
-	 * to the bit-parallel implementation, recursion on elements equal to the pivot is
-	 * expected to have small depth in practice.
+	 * suffixes of $string \cdot \$$ smaller than $string.length()$. This procedure is
+	 * sequential and recursive, and it sorts in place: no additional space is used except
+	 * for the recursion stack. Thanks to the bit-parallel implementation, recursion on
+	 * elements equal to the pivot is expected to have small depth in practice.
 	 *
-	 * @param bitDepth all suffixes in $array[firstSuffix,firstSuffix+nSuffixes-1]$ are
+	 * @param bitDepth all suffixes in $array[firstSuffix..firstSuffix+nSuffixes-1]$ are
 	 * assumed to start with the same sequence of $bitDepth$ bits;
 	 * @param recursionDepth depth in the recursion tree; switches to $heapSort$ when
 	 * this value is $quicksortHeapsortDepth$;
 	 * @param cache $cache[i]$ stores the bits in
-	 * $string[(i<<string.log2BitsPerInt)+bitDepth+1,(i<<string.log2BitsPerInt)+bitDepth+62]$
+	 * $string[(i<<string.log2BitsPerInt)+bitDepth+1 .. (i<<string.log2BitsPerInt)+bitDepth+62]$
 	 * for every suffix $i$ of $string$; the values of $cache$ are read, permuted and
 	 * altered by this procedure;
 	 * @param stopQuicksortAtSize switches to $insertionSort$ for intervals of this size
 	 * or smaller. $insertionSort$ is invoked immediately on each interval (rather than
 	 * in a single, final pass over the whole $array$ as in Sedgewick's delayed small
-	 * sorting), because: (1) it likely reduces cache misses \cite{Introspective_sorting_
-	 * _and_selection_algorithms}; (2) it does not increase the number of function calls:
-	 * $insertionSort$ should be called inside each interval even in the final pass,
-	 * because the values in $cache$ that belong to different intervals are not comparable,
-	 * thus $insertionSort$ run on the whole $array$ could move entries across interval
-	 * boundaries. Of course we want to avoid reloading $cache$ from scratch, both because
-	 * of reload time, and because it's beneficial for $insertionSort$ to start from the
-	 * cache values left by $quickSort$.
+	 * sorting), because: (1) it likely reduces cache misses \cite{musser1997introspective};
+	 * (2) it does not increase the number of function calls: $insertionSort$ should be
+	 * called inside each interval even in the final pass, because the values in $cache$
+	 * that belong to different intervals are not comparable, thus $insertionSort$ run on
+	 * the whole $array$ could move entries across interval boundaries. Of course we want
+	 * to avoid reloading $cache$ from scratch, both because of reload time, and because
+	 * it's beneficial for $insertionSort$ to start from the cache values left by
+	 * $quickSort$.
 	 * @param random random number generator.
 	 */
 	public static final void quicksort(IntArray array, int firstSuffix, int nSuffixes, int bitDepth, int recursionDepth, IntArray string, long[] cache, int quicksortHeapsortDepth, int stopQuicksortAtSize, XorShiftStarRandom random) {
-		int i, diff, size, suffix, a, b, c, d, pivotIndex, r, rankSmaller, rankLarger;
+		boolean pivotSuffixOut;
+		int i, diff, size, suffix, a, b, c, d, pivotIndex, pivotSuffix, otherSuffix, r, rankSmaller, rankLarger;
 		int stringLength = string.length();
-		long tmp, pivot, delta;
+		long tmp, pivot, delta, stringLengthInBits;
 
 		while (nSuffixes>stopQuicksortAtSize) {
 			if (recursionDepth==quicksortHeapsortDepth) {
@@ -72,6 +73,9 @@ public class Suffixes {
 			array.swap(firstSuffix,firstSuffix+pivotIndex);
 			tmp=cache[firstSuffix]; cache[firstSuffix]=cache[firstSuffix+pivotIndex]; cache[firstSuffix+pivotIndex]=tmp;
 			pivot=cache[firstSuffix];
+			pivotSuffix=array.getElementAt(firstSuffix);
+			stringLengthInBits=string.totalBits;
+			pivotSuffixOut=(pivotSuffix<<string.log2BitsPerInt)+bitDepth+63>=stringLengthInBits;
 
 			// Moving pointers
 			a=b=1;
@@ -83,9 +87,15 @@ public class Suffixes {
 					delta=cache[firstSuffix+b]-pivot;
 					if (delta>0) break;
 					else if (delta==0) {
-						array.swap(firstSuffix+a,firstSuffix+b);
-						cache[firstSuffix+b]=cache[firstSuffix+a];
-						a++;
+						otherSuffix=array.getElementAt(firstSuffix+b);
+						if (pivotSuffixOut || (otherSuffix<<string.log2BitsPerInt)+bitDepth+63>=stringLengthInBits) {
+							if (otherSuffix<pivotSuffix) break;
+						}
+						else {
+							array.swap(firstSuffix+a,firstSuffix+b);
+							cache[firstSuffix+b]=cache[firstSuffix+a];
+							a++;
+						}
 					}
 					b++;
 				}
@@ -95,9 +105,15 @@ public class Suffixes {
 					delta=cache[firstSuffix+c]-pivot;
 					if (delta<0) break;
 					else if (delta==0) {
-						array.swap(firstSuffix+c,firstSuffix+d);
-						cache[firstSuffix+c]=cache[firstSuffix+d];
-						d--;
+						otherSuffix=array.getElementAt(firstSuffix+c);
+						if (pivotSuffixOut || (otherSuffix<<string.log2BitsPerInt)+bitDepth+63>=stringLengthInBits) {
+							if (otherSuffix>pivotSuffix) break;
+						}
+						else {
+							array.swap(firstSuffix+c,firstSuffix+d);
+							cache[firstSuffix+c]=cache[firstSuffix+d];
+							d--;
+						}
 					}
 					c--;
 				}
@@ -168,7 +184,7 @@ public class Suffixes {
 	/**
 	 * Let $array$ be an array of suffixes in $string$, and let $cache$ collect the first
 	 * 63 bits that start at each such suffix in $string$. The procedure computes a number
-	 * in $[0,nSuffixes)$ for splitting $array[firstSuffix,firstSuffix+nSuffixes-1]$ in
+	 * in $[0..nSuffixes)$ for splitting $array[firstSuffix..firstSuffix+nSuffixes-1]$ in
 	 * two equal parts according to the lexicographic order of the suffixes in $string$.
 	 * Borrowed from Juha K\"{a}rkk\"{a}inen's $dcs-bwt-compressor$.
 	 */
@@ -272,7 +288,7 @@ public class Suffixes {
 
 
 	/**
-	 * Heapifies the relative position $position$ in the heap $array[firstSuffix,
+	 * Heapifies the relative position $position$ in the heap $array[firstSuffix..
 	 * firstSuffix+nSuffixes-1]$. Comparisons are bit-parallel thanks to $cache$.
 	 * The values in $cache$ are just read and permuted, but not altered.
 	 */
@@ -317,24 +333,24 @@ public class Suffixes {
 
 
 	/**
-	 * Stores in $out$ the suffixes of $string$ that are lexicographically larger than
-	 * $string[low,]$ and smaller than $string[high,]$. The setting $low<0$ is
-	 * interpreted as $string[low,]=\varepsilon$, and the setting $high<0$ is interpreted
-	 * as $string[high,]=x^\infty$, where $x>a \forall a \in \Sigma$. $out$ is not sorted
-	 * lexicographically.
+	 * Stores in $out$ the suffixes of $string$ that are lexicographically larger
+	 * than $string[low..]$ and smaller than $string[high..]$. The setting $low<0$ is
+	 * interpreted as $string[low..]=\epsilon$, and the setting $high<0$ is interpreted as
+	 * $string[high..]=x^\infty$, where $x>a \forall a \in \Sigma$. $out$ is not sorted
+	 * lexicographically, and it does not contain $\$$.
 	 *
 	 * The procedure is sequential: the comparisons of each suffix with
-	 * $string[low,]$ and with $string[high,]$ are not parallelized, because each such
+	 * $string[low..]$ and with $string[high..]$ are not parallelized, since each such
 	 * comparison amounts to just one or two LCP computations: parallelization should
 	 * instead be performed ad the interval level, i.e. for distinct $(low,high)$ pairs.
 	 * The code for $low$ and $high$ is identical: it is replicated inside a single
 	 * procedure to avoid two function calls per suffix of $string$, and to possibly
 	 * reuse cached portions of $string$.
 	 *
-	 * @param lcpLow LCP array of $string[low,]$, computed by $buildLCPArray$. We assume
+	 * @param lcpLow LCP array of $string[low..]$, computed by $buildLCPArray$. We assume
 	 * that $lcpLow.bitsPerInt=lcpHigh.bitsPerInt$.
-	 * @param lcpHigh LCP array of $string[high,]$, computed by $buildLCPArray$. We assume
-	 * that $lcpLow.bitsPerInt=lcpHigh.bitsPerInt$.
+	 * @param lcpHigh LCP array of $string[high..]$, computed by $buildLCPArray$. We
+	 * assume that $lcpLow.bitsPerInt=lcpHigh.bitsPerInt$.
 	 */
 	public static final void intervalOfSuffixes(int low, int high, IntArray lcpLow, IntArray lcpHigh, IntArray string, IntArray out) {
 		final int BITS_PER_INT = lcpLow==null?lcpHigh.bitsPerInt:lcpLow.bitsPerInt;
@@ -386,7 +402,7 @@ public class Suffixes {
 				}
 				else sign=signPrime;
 				smallerThanLow=sign!=0x00000000;
-				// If $string[i,]$ is lexicographically smaller than $string[low,]$ we
+				// If $string[i..]$ is lexicographically smaller than $string[low..]$ we
 				// can't quit the iteration here, because we need to update the temporary
 				// variables related to $high$.
 			}
@@ -430,10 +446,10 @@ public class Suffixes {
 
 	/**
 	 * Stores in $out[i]$ the length of the longest common prefix between
-	 * $string[suffix,]$ and $string[i,]$, for every
+	 * $string[suffix..]$ and $string[i..]$, for every
 	 * $suffix \leq i \leq suffix+distinguishingPrefix$, where $distinguishingPrefix=\min
 	 * \{DISTINGUISHING_PREFIX,string.length()-suffix\}$. The first bit of $out[i]$ is one
-	 * iff $string[suffix,]$ is lexicographically larger than $string[i,]$.
+	 * iff $string[suffix..]$ is lexicographically larger than $string[i..]$.
 	 *
 	 * @param out we assume that any LCP length can be encoded in $out.bitsPerInt-1$ bits,
 	 * and that $out.bitsPerInt \leq 32$.
@@ -551,9 +567,8 @@ public class Suffixes {
 
 	/**
 	 * Builds the cache for binary searches over $splitters$ used by $assignSuffixToBlock$
-	 * as described in \cite{Suffix_arrays_A_new_method_for_on-line_string_searches}.
-	 * The procedure is currently sequential, but it could be easily parallelized
-	 * if $splitters$ is large.
+	 * as described in \cite{manber1993suffix}. The procedure is currently sequential, but
+	 * it could be easily parallelized if $splitters$ is large.
 	 *
 	 * @param splitters three or more suffixes of $string$, sorted lexicographically;
 	 * @return an array of size $2*(splitters.length()-2)$ that stores at position
@@ -596,20 +611,23 @@ public class Suffixes {
 
 	/**
 	 * Builds a representation of the BWT of $string$ using the blockwise, multithreaded
-	 * strategy described in \cite{Fast_BWT_in_small_space_by_blockwise_suffix_sorting}.
+	 * strategy described in \cite{karkkainen2007fast}.
 	 *
 	 * If $bwt$ if not null, then the BWT of $string$ is stored in $bwt$ as a sequence of
-	 * $string.length()$ integers, each represented in $log2alphabetLength$ bits.
+	 * $string.length()+1$ integers, each represented in $log2alphabetLength$ bits. $bwt$
+	 * must have been already filled with $string.length()+1$ zeros, since this procedure
+	 * sets its values, rather than pushing them.
 	 * Otherwise, the full BWT of $string$ is not kept in memory as an array of integers,
 	 * and instead:
 	 * 1. the output is stored in array $waveletTrees$ as a sequence of approximately
 	 * $string.length()/blockSize$ Huffman-shaped wavelet trees, built on the
-	 * corresponding blocks of the BWT;
+	 * corresponding blocks of the BWT; character $\$$ is not used to build such wavelet
+	 * trees;
 	 * 2. $blockStarts$ is filled with the starting position of each block in sorted
-	 * order;
-	 * 3. $blockBoundaries$ is set to a (sparse) vector of $string.length()$ bits which
-	 * flags with a one each value $blockStarts[i]$ with $i>0$;
-	 * 4. $localBlockCounts$ stores the number of symbols in each block.
+	 * order in the BWT;
+	 * 3. $blockBoundaries$ is set to a vector of $string.length()+1$ bits which flags
+	 * with a one each value $blockStarts[i]$ with $i>0$;
+	 * 4. $localBlockCounts$ stores the number of characters in each block, excluding $\$$.
 	 *
 	 * Remark: for a detailed description of the space requirements of this procedure,
 	 * see $blockwiseBWT_getBlockSize$.
@@ -619,13 +637,13 @@ public class Suffixes {
 	 *
 	 * @param blockSize maximum number of suffixes in a block;
 	 * @param dollar used iff $bwt==null$; $dollar[0]$: position of the dollar sign in
-	 * the $BWT$ of $string$; $dollar[1]$: block containing the dollar sign;
+	 * the BWT of $string$; $dollar[1]$: block containing the dollar sign;
 	 * $dollar[2]$: distance of the dollar sign from the beginning of block $dollar[1]$;
-	 * @return the position of the dollar sign in the $BWT$ of $string$.
+	 * @return the position of the dollar sign in the BWT of $string$.
 	 */
 	public static final int blockwiseBWT(IntArray string, int[] alphabet, int alphabetLength, int log2alphabetLength, int blockSize, int nThreads, IntArray bwt, HuffmanWaveletTree[] waveletTrees, IntArray blockStarts, IntArray blockBoundaries, IntArray[] localBlockCounts, long[] dollar) {
 		int i, j, splitter, lastSplitter, cumulativeSize, nSplitters, currentBlock, blockStart, maxBlockSize;
-		final int stringLength, log2stringLength;
+		final int stringLength, log2stringLength, log2stringLengthPlusOne;
 		IntArray binarySearchCache;
 		IntArray splitters_byPosition;  // Initial set of splitters, sorted by position in the string.
 		IntArray splitters_bySuffix;  // Initial set of splitters, sorted lexicographically.
@@ -637,25 +655,10 @@ public class Suffixes {
 		AtomicInteger[] blockSizes;  // Atomic counters used for measuring the size of blocks in parallel
 		stringLength=string.length();
 		log2stringLength=Utils.log2(stringLength);
+		log2stringLengthPlusOne=Utils.log2(stringLength+1);
 		XorShiftStarRandom random = new XorShiftStarRandom();
 
-		// Building a set of distinct $\approx \ceil{stringLength/blockSize}-1$ random splitters
-		nSplitters=Utils.divideAndRoundUp(stringLength,blockSize)-1;
-		if (nSplitters<3) nSplitters=3;  // This lower bound is required by $buildBinarySearchCache$
-		splitters = new IntArray(nSplitters,log2stringLength);
-		for (i=0; i<nSplitters; i++) splitters.push(random.nextInt(stringLength));
-		splitters.heapSort(0,nSplitters);
-		splitters_byPosition = new IntArray(nSplitters,log2stringLength);
-		lastSplitter=splitters.getElementAt(0);
-		splitters_byPosition.push(lastSplitter);
-		for (i=1; i<nSplitters; i++) {  // Removing duplicates
-			splitter=splitters.getElementAt(i);
-			if (splitter!=lastSplitter) {
-				splitters_byPosition.push(splitter);
-				lastSplitter=splitter;
-			}
-		}
-		splitters.clear();
+		splitters_byPosition=buildSplitters(stringLength,log2stringLength,blockSize,random);
 		nSplitters=splitters_byPosition.length();
 		splitters_bySuffix=splitters_byPosition.clone();
 		sort(splitters_bySuffix,string,random);
@@ -674,32 +677,37 @@ public class Suffixes {
 		}
 		splitters_byPosition.deallocate(); splitters_byPosition=null;
 		binarySearchCache.deallocate(); binarySearchCache=null;
+		blockSizes[0].incrementAndGet();  // Adding suffix $\$$, which is not counted by $MeasureBWTBlockThread$
 
 		// Merging adjacent blocks greedily and sequentially. Existing blocks larger than
 		// $blockSize$ are not refined. At the end of this process, the first block
-		// has the form $[0,y]$, the last block has the form $(x,stringLength)$, and all
-		// the other blocks have the form $(x,y]$, where $x,y$ are splitters.
-		if (blockStarts==null) blockStarts = new IntArray(nSplitters+1,log2stringLength,true);
-		i=1; cumulativeSize=blockSizes[0].get(); blockStart=0; maxBlockSize=0; j=0;
+		// has the form $[..y]$, the last block has the form $(x..$, and all
+		// the other blocks have the form $(x..y]$, where $x$ and $y$ are splitters.
+		splitters = new IntArray(nSplitters,log2stringLength);
+		if (blockStarts==null) blockStarts = new IntArray(nSplitters+1,log2stringLengthPlusOne,false);
+		else blockStarts.clear();
+		i=1; cumulativeSize=blockSizes[0].get()+1; blockStart=0; maxBlockSize=0;
 		while (i<=nSplitters) {
 			currentBlock=blockSizes[i].get();
-			if (cumulativeSize+currentBlock+1>blockSize) {
+			if (cumulativeSize+currentBlock+(i<nSplitters?1:0)>blockSize) {
 				splitters.push(splitters_bySuffix.getElementAt(i-1));
-				blockStarts.setElementAt(j++,blockStart);
-				blockStart+=cumulativeSize+1;
-				if (cumulativeSize+1>maxBlockSize) maxBlockSize=cumulativeSize+1;
-				cumulativeSize=currentBlock;
+				blockStarts.push(blockStart);
+				blockStart+=cumulativeSize;
+				if (cumulativeSize>maxBlockSize) maxBlockSize=cumulativeSize;
+				cumulativeSize=currentBlock+(i<nSplitters?1:0);
 			}
-			else cumulativeSize+=currentBlock+1;
+			else cumulativeSize+=currentBlock+(i<nSplitters?1:0);
 			i++;
 		}
-		blockStarts.setElementAt(j,blockStart);  // Last block
-		if (cumulativeSize+1>maxBlockSize) maxBlockSize=cumulativeSize+1;
+		if (blockStart<=stringLength) {  // Closing last block
+			blockStarts.push(blockStart);
+			if (cumulativeSize>maxBlockSize) maxBlockSize=cumulativeSize;
+		}
 		nSplitters=splitters.length();
 		blockSizes=null;
 		splitters_bySuffix.deallocate(); splitters_bySuffix=null;
 		if (bwt==null) {
-			for (i=1; i<=nSplitters; i++) {
+			for (i=0; i<=nSplitters; i++) {
 				blockBoundaries.setElementFromRightAt(blockStarts.getElementAt(i),1);  // $Rank9$, used on $blockBoundaries$, stores bits from right to left.
 			}
 		}
@@ -708,10 +716,10 @@ public class Suffixes {
 		lcpArrays = new IntArray[nSplitters];
 		for (i=0; i<nSplitters; i++) {
 			splitter=splitters.getElementAt(i);
-			lcpArrays[i] = new IntArray(DISTINGUISHING_PREFIX+1,log2stringLength);
+			lcpArrays[i] = new IntArray(DISTINGUISHING_PREFIX+1,log2stringLength<<1);  // The left-shift is necessary to guarantee that there is at least one bit for the sign in each LCP array
 			buildLCPArray(splitter,string,lcpArrays[i]);
 		}
-		generator = new AtomicInteger();  // We can't reuse the previous generator because at this point some $BlockMeasureThread$s could still be active and reading from it
+		generator = new AtomicInteger();  // We can't reuse the previous generator because at this point some $MeasureBWTBlockThread$ could still be active and reading from it
 		latch = new CountDownLatch(nSplitters+1);
 		dollarPosition = new AtomicInteger();
 		dollarBlock=null;
@@ -746,8 +754,101 @@ public class Suffixes {
 
 
 	/**
+	 * @return a set of distinct, $\approx \ceil{stringLength/blockSize}-1$, random
+     * splitters of the suffixes of a string $s$ (not of $s \cdot \$$). Such splitters
+     * are at least 3 (a lower bound required by $buildBinarySearchCache$), and they are
+     * sorted by position in $s$.
+	 */
+	private static IntArray buildSplitters(int stringLength, int log2stringLength, int blockSize, XorShiftStarRandom random) {
+		int i, nSplitters, splitter, firstSplitter, secondSplitter, lastSplitter;
+		IntArray splitters, distinctSplitters;
+
+		nSplitters=Utils.divideAndRoundUp(stringLength,blockSize)-1;
+		if (nSplitters<3) nSplitters=3;
+		splitters = new IntArray(nSplitters,log2stringLength);
+		for (i=0; i<nSplitters; i++) splitters.push(random.nextInt(stringLength));
+		splitters.heapSort(0,nSplitters);
+
+		// Removing duplicates
+		distinctSplitters = new IntArray(nSplitters,log2stringLength);
+		lastSplitter=splitters.getElementAt(0);
+		distinctSplitters.push(lastSplitter);
+		for (i=1; i<nSplitters; i++) {
+			splitter=splitters.getElementAt(i);
+			if (splitter!=lastSplitter) {
+				distinctSplitters.push(splitter);
+				lastSplitter=splitter;
+			}
+		}
+		splitters.clear();
+
+		// Enforcing at least 3 splitters after duplicate removal
+		if (distinctSplitters.length()==1) {
+			splitter=distinctSplitters.getElementAt(0);
+			if (splitter>0 && splitter<stringLength-1) {
+				splitters.push(random.nextInt(splitter));
+				splitters.push(splitter);
+				splitters.push(splitter+1+random.nextInt(stringLength-splitter-1));
+			}
+			else if (splitter==stringLength-1) {
+				firstSplitter=random.nextInt(splitter);
+				do { secondSplitter=random.nextInt(splitter); }
+				while (secondSplitter==firstSplitter);
+				if (firstSplitter<secondSplitter) {
+					splitters.push(firstSplitter);
+					splitters.push(secondSplitter);
+				}
+				else {
+					splitters.push(secondSplitter);
+					splitters.push(firstSplitter);
+				}
+				splitters.push(splitter);
+			}
+			else {
+				splitters.push(splitter);
+				firstSplitter=1+random.nextInt(stringLength-1);
+				do { secondSplitter=1+random.nextInt(stringLength-1); }
+				while (secondSplitter==firstSplitter);
+				if (firstSplitter<secondSplitter) {
+					splitters.push(firstSplitter);
+					splitters.push(secondSplitter);
+				}
+				else {
+					splitters.push(secondSplitter);
+					splitters.push(firstSplitter);
+				}
+			}
+			distinctSplitters=splitters;
+		}
+		else if (distinctSplitters.length()==2) {
+			firstSplitter=distinctSplitters.getElementAt(0);
+			secondSplitter=distinctSplitters.getElementAt(1);
+			if (firstSplitter>0) {
+				splitters.push(random.nextInt(firstSplitter));
+				splitters.push(firstSplitter);
+				splitters.push(secondSplitter);
+			}
+			else if (secondSplitter>firstSplitter+1) {
+				splitters.push(firstSplitter);
+				splitters.push(firstSplitter+1+random.nextInt(secondSplitter-firstSplitter-1));
+				splitters.push(secondSplitter);
+			}
+			else {
+				splitters.push(firstSplitter);
+				splitters.push(secondSplitter);
+				splitters.push(secondSplitter+1+random.nextInt(stringLength-secondSplitter-1));
+			}
+			distinctSplitters=splitters;
+		}
+		return distinctSplitters;
+	}
+
+
+
+	/**
 	 * Thread used by procedure $blockwiseBWT$ to measure in parallel the number of
-	 * suffixes between two consecutive splitters in the BWT (splitters excluded).
+	 * suffixes between two consecutive splitters in the BWT (splitters excluded,
+	 * artificial suffix $\$$ excluded).
 	 */
 	private static class MeasureBWTBlockThread extends Thread {
 		private IntArray splitters_byPosition;  // For discarding suffixes that correspond to splitters
@@ -785,11 +886,12 @@ public class Suffixes {
 	/**
 	 * Thread used by procedure $blockwiseBWT$ to collect and sort the suffixes in BWT
 	 * blocks in parallel. To limit the time spent in critical regions, the thread builds
-	 * its BWT block in a local array, and it copies it to the global BWT with a faster
-	 * method.
+	 * its BWT block in a local array of $maxBlockSize$ entries, and it copies it to the
+	 * global BWT using the bitparallel procedure $IntArray.pasteAtPointer$.
 	 */
 	private static class SortBWTBlockThread extends Thread {
 		private final int maxBlockSize, log2stringLength, log2alphabetLength;
+		private final int stringLength;
 		private AtomicInteger splitterGenerator, dollarPosition;
 		private IntArray splitters, string, bwt, blockStarts;
 		private CountDownLatch latch;
@@ -801,7 +903,8 @@ public class Suffixes {
 			this.splitters=splitters;
 			this.lcpArrays=lcpArrays;
 			this.string=string;
-			log2stringLength=Utils.log2(string.length());
+			stringLength=string.length();
+			log2stringLength=Utils.log2(stringLength);
 			this.bwt=bwt;
 			this.blockStarts=blockStarts;
 			this.latch=latch;
@@ -829,12 +932,18 @@ public class Suffixes {
 
 				// Building local BWT block
 				blockStart=blockStarts.getElementAt(rightSplitter);
-				synchronized(bwt) {
-					bwt.setPointer(blockStart);
-					pointerOffset=bwt.pointerOffset;
+				if (rightSplitter==0) {  // Making room for suffix $\$$
+					bwtBlock.push(string.getElementAt(stringLength-1));
+					pointer=1;
 				}
-				bwtBlock.clear(pointerOffset);
-				pointer=blockStart;
+				else {
+					synchronized(bwt) {
+						bwt.setPointer(blockStart);
+						pointerOffset=bwt.pointerOffset;
+					}
+					bwtBlock.clear(pointerOffset);
+					pointer=blockStart;
+				}
 				for (i=0; i<blockLength; i++) {
 					suffix=suffixArrayBlock.getElementAt(i);
 					if (suffix!=0) bwtBlock.push(string.getElementAt(suffix-1));
@@ -867,10 +976,13 @@ public class Suffixes {
 
 	/**
 	 * Thread used by procedure $blockwiseBWT$ to build the Huffman-shaped wavelet tree of
-	 * BWT blocks in parallel. This thread is largely isomorphic to $SortBWTBlockThread$.
+	 * BWT blocks in parallel. This thread is largely isomorphic to $SortBWTBlockThread$,
+	 * with the following exception: character $\$$ (or a substitute of it inside the
+	 * alphabet) is not explicitly inserted in the block that contains it, which is thus
+	 * one character shorter.
 	 */
 	private static class WaveletBWTBlockThread extends Thread {
-		private final int maxBlockSize, log2stringLength, alphabetLength, log2alphabetLength;
+		private final int maxBlockSize, stringLength, log2stringLength, alphabetLength, log2alphabetLength;
 		private int[] alphabet;
 		private AtomicInteger splitterGenerator, dollarPosition, dollarBlock, dollarOffset;
 		private IntArray splitters, string, bwt, blockStarts;
@@ -886,7 +998,8 @@ public class Suffixes {
 			this.splitters=splitters;
 			this.lcpArrays=lcpArrays;
 			this.string=string;
-			log2stringLength=Utils.log2(string.length());
+			stringLength=string.length();
+			log2stringLength=Utils.log2(stringLength);
 			this.blockStarts=blockStarts;
 			this.waveletTrees=waveletTrees;
 			this.localBlockCounts=localBlockCounts;
@@ -898,11 +1011,13 @@ public class Suffixes {
 		}
 
 		public void run() {
-			int i, c, rightSplitter, rightSplitterSuffix=-1, blockLength, blockStart, pointer, pointerOffset, suffix;
+			int i, j, c, rightSplitter, rightSplitterSuffix=-1, blockLength, bwtBlockLength, pointer, pointerOffset, suffix, effectiveAlphabetLength, count;
 			final int nSplitters = splitters.length();
+			int[] effectiveAlphabet;
 			long[] counts = new long[alphabetLength];
+			IntArray effectiveCounts;
 			IntArray suffixArrayBlock = new IntArray(maxBlockSize,log2stringLength);
-			IntArray bwtBlock = new IntArray(maxBlockSize,log2alphabetLength);
+			IntArray bwtBlock = new IntArray(maxBlockSize+2,log2alphabetLength);  // In the worst case, a suffix array block can be augmented with two additional characters.
 			XorShiftStarRandom random = new XorShiftStarRandom();
 			while (true) {
 				rightSplitter=splitterGenerator.getAndIncrement();
@@ -914,26 +1029,36 @@ public class Suffixes {
 				else if (rightSplitter==nSplitters) intervalOfSuffixes(splitters.getElementAt(rightSplitter-1),-1,lcpArrays[rightSplitter-1],null,string,suffixArrayBlock);
 				else intervalOfSuffixes(splitters.getElementAt(rightSplitter-1),rightSplitterSuffix,lcpArrays[rightSplitter-1],lcpArrays[rightSplitter],string,suffixArrayBlock);
 				blockLength=suffixArrayBlock.length();
-				sort(suffixArrayBlock,string,random);
+				if (blockLength>0) sort(suffixArrayBlock,string,random);
 
-				// Building the wavelet tree of the local BWT block. Not building the BWT
+				// Building the local BWT block. Not building the BWT
 				// block explicitly would produce cache misses both while counting the
 				// symbols in the block and while pushing them in the wavelet tree.
-				blockStart=blockStarts.getElementAt(rightSplitter);
 				bwtBlock.clear();
-				localBlockCounts[rightSplitter] = new IntArray(alphabetLength,Utils.log2(blockLength),true);
-				pointer=blockStart;
+				localBlockCounts[rightSplitter] = new IntArray(alphabetLength,Utils.bitsToEncode(blockLength+2),true);  // In the worst case, a suffix array block can be augmented with two additional characters.
+				if (rightSplitter==0) {  // Making room for suffix $\$$
+					c=string.getElementAt(stringLength-1);
+					bwtBlock.push(c);
+					localBlockCounts[rightSplitter].incrementElementAt(c);
+					pointer=1;
+					bwtBlockLength=1;
+				}
+				else {
+					pointer=blockStarts.getElementAt(rightSplitter);
+					bwtBlockLength=0;
+				}
 				for (i=0; i<blockLength; i++) {
 					suffix=suffixArrayBlock.getElementAt(i);
 					if (suffix!=0) {
 						c=string.getElementAt(suffix-1);
 						bwtBlock.push(c);
 						localBlockCounts[rightSplitter].incrementElementAt(c);
+						bwtBlockLength++;
 					}
 					else {
 						dollarPosition.set(pointer);
 						dollarBlock.set(rightSplitter);
-						dollarOffset.set(i);
+						dollarOffset.set(bwtBlockLength);
 					}
 					pointer++;
 				}
@@ -942,14 +1067,36 @@ public class Suffixes {
 						c=string.getElementAt(rightSplitterSuffix-1);
 						bwtBlock.push(c);
 						localBlockCounts[rightSplitter].incrementElementAt(c);
+						bwtBlockLength++;
 					}
 					else {
 						dollarPosition.set(pointer);
 						dollarBlock.set(rightSplitter);
-						dollarOffset.set(blockLength);
+						dollarOffset.set(bwtBlockLength);
+					}
+					pointer++;
+				}
+				if (bwtBlockLength==0) {  // Skipping blocks with no BWT character
+					latch.countDown();
+					continue;
+				}
+
+				// Building a wavelet tree on the effective alphabet of the BWT block
+				effectiveAlphabetLength=0;
+				for (i=0; i<alphabetLength; i++) {
+					if (localBlockCounts[rightSplitter].getElementAt(i)!=0) effectiveAlphabetLength++;
+				}
+				effectiveAlphabet = new int[effectiveAlphabetLength];
+				effectiveCounts = new IntArray(effectiveAlphabetLength,Utils.bitsToEncode(bwtBlockLength),false);
+				j=0;
+				for (i=0; i<alphabetLength; i++) {
+					count=localBlockCounts[rightSplitter].getElementAt(i);
+					if (count!=0) {
+						effectiveAlphabet[j++]=i;
+						effectiveCounts.push(count);
 					}
 				}
-				waveletTrees[rightSplitter] = new HuffmanWaveletTree(bwtBlock,alphabet,localBlockCounts[rightSplitter]);
+				waveletTrees[rightSplitter] = new HuffmanWaveletTree(bwtBlock,effectiveAlphabet,effectiveCounts);
 				latch.countDown();
 			}
 			suffixArrayBlock.deallocate(); suffixArrayBlock=null;
@@ -981,9 +1128,8 @@ public class Suffixes {
 				stringLength*32;
 		int a = nThreads*(log2stringLength+log2alphabetLength);
 		double delta = availableMemory*availableMemory-4*a*c;
-		return (int)((availableMemory+Math.sqrt(delta))/(2*a));
+		int out = (int)((availableMemory+Math.sqrt(delta))/(2*a));
+		return out>2?out:2;  // Putting at least two suffixes in a block
 	}
-
-
 
 }

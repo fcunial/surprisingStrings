@@ -1,6 +1,368 @@
 
 
 
+
+
+substringiterator:
+
+if (nStrings>1 || nStringsNotExtended!=0 || nShortStringsNotExtended!=0) {
+	System.out.println(this+"> OTHER PROBLEM: nStrings="+nStrings+" | nStringsNotExtended="+nStringsNotExtended+" | nShortStringsNotExtended="+nShortStringsNotExtended);
+	System.exit(1);
+}
+
+
+
+
+synchronized(latch) {
+System.out.println(this+"> stack of thread "+this+" before extendLeft:");
+printStack(stack,MAX_STRING_LENGTH_FOR_SPLIT,this);
+}
+
+synchronized(latch) {
+System.out.println(this+"> stack of thread "+this+" after extendLeft:");
+printStack(stack,MAX_STRING_LENGTH_FOR_SPLIT,this);
+}
+
+synchronized(latch) {
+System.out.println(this+"> *strings in the stack: "+nStrings+" extended strings in the stack: "+(nStrings-nStringsNotExtended)+" short nonextended strings in the stack: "+nShortStringsNotExtended);
+}
+
+synchronized(latch) {
+System.out.println(this+"> (receiver) stack before stealing: ");
+printStack(stack,MAX_STRING_LENGTH_FOR_SPLIT,this);
+}
+
+System.out.println(this+"> ------------ NOW STEALING WORK -------------");
+
+synchronized(latch) {
+System.out.println(this+"> "+donor+" (donor) stack before stealing: ");
+int zNStrings = 0;
+int zExtended = 0;
+donorStack.setPosition(0);
+while (donorStack.getPosition()<donorStack.length()) {
+	w.read(donorStack);
+	zNStrings++;
+	if (w.hasBeenExtended) {
+		zExtended++;
+		System.out.print("*");
+	}
+	for (int x=0; x<w.nPointers; x++) System.out.print(w.stackPointers[x]+" ");
+	System.out.println();
+}
+if (zNStrings!=donor.nStrings) {
+	System.out.println(this+"> (1) "+zNStrings+"!="+donor.nStrings);
+	System.exit(1);
+}
+if (zExtended!=donor.nStrings-donor.nStringsNotExtended) {
+	System.out.println(this+"> (2) "+zExtended+"!="+(donor.nStrings-donor.nStringsNotExtended));
+	System.exit(1);
+}
+System.out.println();
+}
+
+synchronized(latch) {
+System.out.println(this+"> "+donor+" (donor) stack after stealing: ");
+printStack(donor.stack,MAX_STRING_LENGTH_FOR_SPLIT,this);
+System.out.println(this+"> "+this+" (receiver) stack after stealing: ");
+printStack(stack,MAX_STRING_LENGTH_FOR_SPLIT,this);
+}
+
+synchronized(latch) {
+if (!w.hasBeenExtended) {
+	System.err.println("w.hasBeenExtended=FALSE!!!");
+	System.exit(1);
+}
+
+System.out.println(this+"> translator before:");
+for (int x=0; x<3; x++) {
+	for (int y=0; y<=translator_last; y++) System.out.print(translator[x][y]+" ");
+	System.out.println();
+}
+}
+
+System.out.println(this+"> searching for "+w.stackPointers[i]);
+
+/**
+	 * For debugging only
+	 */
+	private final void printStack(Stream stack, int maxStringLengthToReport, Thread thread) {
+		int zStrings = 0;
+		int zExtended = 0;
+		int zShortNotExtended = 0;
+		Substring w = SUBSTRING_CLASS.getInstance();
+		long backupPosition = stack.getPosition();
+
+		stack.setPosition(0);
+		System.out.println(thread+"> Stack: ");
+		while (stack.getPosition()<stack.length()) {
+			w.read(stack);
+			zStrings++;
+			if (w.hasBeenExtended) {
+				zExtended++;
+				System.out.print("*");
+			}
+			else if (w.length<=maxStringLengthToReport) zShortNotExtended++;
+			for (int x=0; x<w.nPointers; x++) System.out.print(w.stackPointers[x]+" ");
+			System.out.println();
+		}
+		System.out.println(thread+"> strings in the stack: "+zStrings+" extended strings in the stack: "+zExtended+" short nonextended strings in the stack: "+zShortNotExtended);
+		stack.setPosition(backupPosition);
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+System.out.println("stack after extendLeft:");
+printStack(stack,maxStringLengthToReport);
+
+
+System.out.println("reading a string from the donor stack:");
+System.out.print("n. stack pointers: "+nPointers+" | ");
+for (int x=0; x<w.nPointers; x++) System.out.print(w.stackPointers[x]+" ");
+System.out.println();
+System.out.println("hasBeenExtended="+w.hasBeenExtended+" length="+w.length);
+
+System.out.println("x1");
+
+System.out.println("x2");
+
+
+Substring prima = substringClass.getInstance();
+Substring dopo = substringClass.getInstance();
+long puntatore, backup;
+backup=donorStack.getPosition();
+donorStack.setPosition(oldPointer);
+prima.read(donorStack);
+donorStack.setPosition(backup);
+backup=newDonorStack.getPosition();
+newDonorStack.setPosition(w.stackPointers[j]);
+dopo.read(newDonorStack);
+newDonorStack.setPosition(backup);
+if (!prima.equals(dopo)) {
+	System.err.println("!!! oldPointer="+oldPointer+" newPointer="+w.stackPointers[j]+" newDonor_firstLongString="+newDonor_firstLongString+" oldDonor_firstLongString="+oldDonor_firstLongString);
+//	System.exit(1);
+}
+
+
+System.out.print("-> string starting at "+w.stackPointers[0]+" ");
+
+
+System.out.println("pushed at position "+w.stackPointers[0]);
+
+
+System.out.println("---");
+
+System.out.println("translator before:");
+for (int x=0; x<3; x++) {
+	for (int y=0; y<=translator_last; y++) System.out.print(translator[x][y]+" ");
+	System.out.println();
+}
+
+System.out.println("searching for "+w.stackPointers[i]);
+
+System.out.println("1) searching for "+w.stackPointers[j]+" in addressTranslator[0]: "+(Arrays.binarySearch(addressTranslator[0],0,addressTranslator_last+1,w.stackPointers[j])>=0?"found":"not found"));
+
+System.out.println("3) searching for "+w.stackPointers[j]+" in addressTranslator[0]: "+(Arrays.binarySearch(addressTranslator[0],0,addressTranslator_last+1,w.stackPointers[j])>=0?"found":"not found"));
+
+System.out.println("4) searching for "+w.stackPointers[j]+" in addressTranslator[0]: "+(Arrays.binarySearch(addressTranslator[0],0,addressTranslator_last+1,w.stackPointers[j])>=0?"found":"not found"));
+
+System.out.println("addressTranslator after:");
+for (int x=0; x<3; x++) {
+	for (int y=0; y<=addressTranslator_last; y++) System.out.print(addressTranslator[x][y]+" ");
+	System.out.println();
+}
+
+
+
+
+------
+
+// 			stringString="1021000010";
+//  			string.clear();
+//  			for (j=0; j<STRING_LENGTH; j++) string.push(stringString.charAt(j));
+
+
+
+System.out.println("--- ITERATION START ---");
+
+System.err.print("Suffix array block: "); suffixArrayBlock.print(); System.out.println();
+System.out.println("splitters: "+(rightSplitter==0?"-inf":splitters.getElementAt(rightSplitter-1))+","+(rightSplitter==nSplitters?"+inf":splitters.getElementAt(rightSplitter))  );
+
+System.out.print("output of intervalOfSuffixes("+(rightSplitter==0?"-inf":splitters.getElementAt(rightSplitter-1))+","+(rightSplitter==nSplitters?"+inf":splitters.getElementAt(rightSplitter))+"): ");
+suffixArrayBlock.print();
+System.out.println();
+
+System.out.print("suffixArrayBlock after sort: ");
+suffixArrayBlock.print();
+System.out.println();
+
+
+
+for (i=0; i<STRING_LENGTH-1; i++) string.push(1);
+string.push(2);
+
+System.out.println("splitters: "+(rightSplitter==0?"-inf":splitters.getElementAt(rightSplitter-1))+","+(rightSplitter==nSplitters?"+inf":splitters.getElementAt(rightSplitter))  );
+
+blockStarts.clear();
+blockStarts.push(0);
+blockStarts.push(2);
+blockStarts.push(5);
+blockStarts.push(6);
+splitters.clear();
+blockStarts.push(1);
+blockStarts.push(4);
+blockStarts.push(5);
+nSplitters=3;
+
+
+comments in substringiterator:
+
+// System.out.println("ranking positions in block "+previousBlock+" (dollar block: "+dollar[1]+")");
+// System.out.print("  positions: (absolute|relative)");
+// for (i=0; i<windowSize; i++) System.out.print("("+positions[windowFirst+i].position+"|"+(positions[windowFirst+i].position-blockStarts.getElementAt(previousBlock))+") ");
+// System.out.println();
+
+// System.out.println("ranking positions in block "+previousBlock+" (dollar block: "+dollar[1]+")");
+// System.out.print("  positions: (absolute|relative)");
+// for (i=0; i<windowSize; i++) System.out.print("("+positions[windowFirst+i].position+"|"+(positions[windowFirst+i].position-blockStarts.getElementAt(previousBlock))+") ");
+// System.out.println();
+
+
+System.out.println("blockBoundaries: "); bitVector.printBits(); System.out.println();
+System.out.println("blockStarts: "); blockStarts.print(); System.out.println();
+System.out.println("localBlockCounts (nBlocks="+nBlocks+"):");
+for (int x=0; x<nBlocks; x++) {
+	localBlockCounts[x].print();
+	System.out.println();
+}
+System.out.println("dollar[0]="+dollar[0]+" dollar[1]="+dollar[1]+" dollar[2]="+dollar[2]);
+System.out.println("-- --");
+
+
+
+System.out.print("C array: ");
+for (int x=0; x<C.length; x++) System.out.print(C[x]+" ");
+System.out.println();
+System.out.print("blockCounts (nBlocks="+nBlocks+"):");
+for (int x=0; x<nBlocks; x++) {
+	for (int y=0; y<alphabetLength; y++) System.out.print(blockCounts[x].getElementAt(y)+" ");
+	System.out.println();
+}
+System.out.println();
+
+
+-----------
+
+comments in waveletbwtblockthread.run:
+
+System.err.print("Suffix array block: "); suffixArrayBlock.print(); System.out.println();
+
+//System.err.println("blockLength: "+blockLength);
+//System.err.println("bitsPerInt in localBlockCounts: "+localBlockCounts[rightSplitter].bitsPerInt);
+
+System.err.println("rightSplitter==0, so pushing one additional character");
+
+System.out.println("dollarPosition="+pointer+" dollarBlock="+dollarBlock+" dollarOffset="+dollarOffset);
+
+System.err.print("BWT block: "); bwtBlock.print(); System.out.println();
+System.err.println("bwtBlockLength: "+bwtBlockLength);
+System.err.print("counts: "); localBlockCounts[rightSplitter].print();
+if (bwtBlockLength==0) {
+System.err.println("bwtBlockLength=0, rightSplitter="+rightSplitter+", rightSplitterSuffix="+rightSplitterSuffix);
+	latch.countDown();
+	continue;
+}
+
+//System.err.println("effectiveAlphabetLength="+effectiveAlphabetLength);
+
+//System.err.print("Effective counts: "); effectiveCounts.print();
+//System.err.print("Effective alphabet and counts: ");
+//for (int x=0; x<effectiveAlphabetLength; x++) System.err.print("("+effectiveAlphabet[x]+", "+effectiveCounts.getElementAt(x)+") ");
+//System.err.println();
+
+
+
+------------
+
+3|$
+2|0133$
+2|02120133$
+2|120133$
+0|133$
+1|20133$
+2|202120133$
+0|2120133$
+$|2202120133$
+3|3$
+1|33$
+
+
+
+
+
+------------
+
+	public final int access(long position) {
+System.out.println("i want to access abstract position "+position);
+		if (alphabetLength==1) return alphabet[0];
+		int node = alphabetLength-2;
+		int effectivePosition;
+		while (node>=0) {
+System.out.println("  working on node "+node+", bitvector "); rankDataStructures[node].bitVector.printBits();
+			effectivePosition=(((int)position)/64)*64 + (64-(((int)position)%64)-1);
+System.out.println("  abstract position: "+position+" effective position: "+effectivePosition+" getElementAt("+effectivePosition+")="+rankDataStructures[node].bitVector.getElementAt(effectivePosition));
+			if (rankDataStructures[node].bitVector.getElementAt(effectivePosition)==0) {
+				node=leftChild[node];
+				if (node<0) return alphabet[-1-node];
+System.out.print("  trying rank on bitvector "); rankDataStructures[node].bitVector.printBits();
+System.out.println("  rank("+position+")="+rankDataStructures[node].rank(position));
+				position-=rankDataStructures[node].rank(position);
+System.out.println("  going left, to abstract position "+position);
+			}
+			else {
+				node=rightChild[node];
+				if (node<0) return alphabet[-1-node];
+System.out.print("  trying rank on bitvector "); rankDataStructures[node].bitVector.printBits();
+System.out.println("  rank("+position+")="+rankDataStructures[node].rank(position));
+				position=rankDataStructures[node].rank(position);
+System.out.println("  going right, to abstract position "+position);
+			}
+		}
+		return -1;
+	}
+
+-----
+
+// System.err.println("Chars and frequencies:");
+// for (i=0; i<alphabetLength; i++) {
+// 	System.err.println("("+alphabet[i]+","+frequencies[i]+") ");
+// }
+// System.err.println("Huffman tree nodes:");
+// for (i=0; i<alphabetLength-1; i++) {
+// 	System.err.println("("+leftChild[i]+"|"+nodeParent[i]+"|"+rightChild[i]+") ");
+// }
+// System.err.println("Huffman tree leaves (parents):");
+// for (i=0; i<alphabetLength; i++) {
+// 	System.err.println(leafParent[i]+" ");
+// }
+
+
+-----
+
+
+
 For debugging:
 
 

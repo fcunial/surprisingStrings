@@ -15,13 +15,14 @@
  *
  * Remark: This object and its subclasses are designed to be employed as reusable data
  * containers, i.e. just as facilities to load data from a bit stream, manipulate it, and
- * push it back to the stream. A typical program needs only a very limited number of
- * instances of this object at any given time.
+ * push it back to the stream. A typical program needs only a limited number of instances
+ * of this object at any given time.
  */
 public class Substring {
 
 	protected static final int MAX_BITS_PER_POINTER = 64;  // Maximum number of bits to encode a stack pointer in $serialized(v)$
 	protected static final int MAX_BITS_PER_LENGTH = 64;  // Maximum number of bits to encode a substring length in $serialized(v)$
+	protected static final int MIN_POINTERS = 3;  // Minimum number of pointers in $stackPointers$
 	protected final int alphabetLength, log2alphabetLength, textLength, log2textLength;
 	protected final int nIntervals;  // Number of rows in $bwtIntervals$
 	protected final int nPointers;  // Number of elements in $stackPointers$
@@ -91,10 +92,10 @@ public class Substring {
 			if (bwtIntervals[i][0]!=otherSubstring.bwtIntervals[i][0] || bwtIntervals[i][1]!=otherSubstring.bwtIntervals[i][1]) return false;
 		}
 		if (nPointers!=otherSubstring.nPointers) return false;
-		for (i=0; i<nPointers; i++) {
+/*		for (i=0; i<nPointers; i++) {
 			if (stackPointers[i]!=otherSubstring.stackPointers[i]) return false;
 		}
-		if (length!=otherSubstring.length) return false;
+*/		if (length!=otherSubstring.length) return false;
 		if (firstCharacter!=otherSubstring.firstCharacter) return false;
 		return true;
 	}
@@ -111,50 +112,84 @@ public class Substring {
 
 
 	/**
-	 * Stores in $symbols$ a $Substring$ instance corresponding to each of the symbols in
-	 * the alphabet.
+	 * Stores in $characters$ a $Substring$ instance corresponding to each character in
+	 * the \emph{effective} alphabet of the text, and to $\$$, in lexicographic order.
 	 *
-	 * @param C the $C$ array in backward-search;
-	 * @param symbols empty array with $alphabetLength$ cells.
+	 * @param C the $C$ array of backward search;
+	 * @param characters empty array with at least $alphabetLength+1$ cells;
+	 * @return the number of cells in $characters$ effectively filled. This number might
+	 * be smaller than $alphabetLength+1$ if the effective alphabet of the text is smaller
+	 * than the entire alphabet.
 	 */
-	protected void getLengthOneSubstrings(long[] C, Substring[] symbols) {
+	protected int getLengthOneSubstrings(long[] C, Substring[] characters) {
+		int i, j;
 		Substring w;
-		for (int i=0; i<alphabetLength-1; i++) {
-			w = new Substring(alphabetLength,log2alphabetLength,textLength,log2textLength);
-			w.bwtIntervals[0][0]=C[i];
-			w.bwtIntervals[0][1]=C[i+1]-1;
-			w.length=1;
-			w.firstCharacter=i;
-			symbols[i]=w;
-		}
-		w = new Substring(alphabetLength,log2alphabetLength,textLength,log2textLength);
-		w.bwtIntervals[0][0]=C[alphabetLength-1];
-		w.bwtIntervals[0][1]=textLength-1;
+
+		// Character $\$$
+		w=getInstance();
+		w.bwtIntervals[0][0]=0;
+		w.bwtIntervals[0][1]=0;
 		w.length=1;
-		w.firstCharacter=alphabetLength-1;
-		symbols[alphabetLength-1]=w;
+		w.firstCharacter=-1;
+		characters[0]=w;
+
+		// Other characters
+		j=1;
+		for (i=0; i<alphabetLength-1; i++) {
+			if (C[i+1]-C[i]>0) {
+//System.out.println("Character "+i+" occurs");
+				w=getInstance();
+				w.bwtIntervals[0][0]=C[i];
+				w.bwtIntervals[0][1]=C[i+1]-1;
+				w.length=1;
+				w.firstCharacter=i;
+				characters[j++]=w;
+			}
+		}
+		if (textLength+1-C[alphabetLength-1]>0) {
+//System.out.println("Character "+(alphabetLength-1)+" occurs");
+			w=getInstance();
+			w.bwtIntervals[0][0]=C[alphabetLength-1];
+			w.bwtIntervals[0][1]=textLength;
+			w.length=1;
+			w.firstCharacter=alphabetLength-1;
+			characters[j++]=w;
+		}
+		return j;
 	}
 
 
 	/**
-	 * Prints to $sequence$ the sequence of characters of $substring$, which is assumed to
+	 * Pushes to $sequence$ the sequence of characters of $substring$, which is assumed to
 	 * be stored in $stack$. $substring$ is assumed to have already been deserialized;
-	 * $sequence$ is assumed to be large enough to contain $substring.length$ characters.
+	 * $sequence$ is assumed to be large enough to contain $substring.length$.
+	 *
+	 * @return TRUE iff $substring.firstCharacter==-1$. This character is not appended to
+	 * $sequence$.
 	 */
-	public static final void getSequence(Substring substring, Stream stack, IntArray sequence) {
+	public static final boolean getSequence(Substring substring, Stream stack, IntArray sequence) {
 		final long backupPosition = stack.getPosition();
 		final long length = substring.length;
+		boolean out = false;
 		Substring w = new Substring(substring.alphabetLength,substring.log2alphabetLength,substring.textLength,substring.log2textLength);
 		w.firstCharacter=substring.firstCharacter;
 		w.stackPointers[2]=substring.stackPointers[2];
 		sequence.clear();
-		for (long i=0; i<length; i++) {
-			sequence.setElementAt(i,w.firstCharacter);
+
+		// First character
+		if (w.firstCharacter==-1) out=true;
+		else sequence.push(w.firstCharacter);
+
+		// Other characters
+		for (long i=1; i<length; i++) {
 			stack.setPosition(w.stackPointers[2]);
 			w.read(stack);
+			sequence.push(w.firstCharacter);
 		}
+
 		stack.setPosition(backupPosition);
 		w.deallocate(); w=null;
+		return out;
 	}
 
 
@@ -165,6 +200,8 @@ public class Substring {
 
 	/**
 	 * Initializes string $v$ from the current setting of $bwtIntervals$ and from $suf(v)$.
+	 *
+	 * @param firstCharacter -1 indicates $\$$.
 	 */
 	protected void init(Substring suffix, int firstCharacter) {
 		stackPointers[2]=suffix.stackPointers[0];
@@ -178,7 +215,7 @@ public class Substring {
 	 * $SubstringIterator$.
 	 */
 	protected boolean shouldBeExtendedLeft() {
-		return true;
+		return firstCharacter>-1;  // Not extending to the left substrings that start by $\$$
 	}
 
 
@@ -192,7 +229,9 @@ public class Substring {
 	 * @return true iff $v$ occurs in $s$
 	 */
 	protected boolean occurs() {
-		return bwtIntervals[0][1]>=bwtIntervals[0][0];
+		return bwtIntervals[0][0]>=0 && bwtIntervals[0][0]<=textLength &&
+			   bwtIntervals[0][1]>=0 && bwtIntervals[0][1]<=textLength &&
+			   bwtIntervals[0][1]>=bwtIntervals[0][0];
 	}
 
 

@@ -202,7 +202,7 @@ public class Utils {
 
 
 	/**
-	 * @return the most significant bit of $x$>, if $x$ is nonzero; -1 otherwise.
+	 * @return the most significant bit of $x$, if $x$ is nonzero; -1 otherwise.
 	 */
 	public static final int mostSignificantBit(long x) {
 		return 63-Long.numberOfLeadingZeros(x);

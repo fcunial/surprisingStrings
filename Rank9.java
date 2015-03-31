@@ -31,20 +31,17 @@ public class Rank9 {
 	//Commented by FC> private static final long serialVersionUID = 1L;
 
 	protected transient long[] bits;
-	//Commented by FC> final protected IntArray bitVector;
+	final protected IntArray bitVector;
 	final protected long[] count;
 	final protected int numWords;
 	final protected long numOnes;
 	final protected long lastOne;
 
-protected long originalLength;
-
 
 	public Rank9( final IntArray bitVector ) {
-		//Commented by FC> this.bitVector = bitVector;
+		this.bitVector = bitVector;
 		this.bits = bitVector.array;
 		final long length = bitVector.length();
-originalLength=length;
 		numWords = (int)( ( length + Long.SIZE - 1 ) / Long.SIZE );
 
 		final int numCounts = (int)( ( length + 8 * Long.SIZE - 1 ) / ( 8 * Long.SIZE ) ) * 2;
@@ -75,8 +72,8 @@ originalLength=length;
 	public long rank( long pos ) {
 		//Commented by FC> if ( ASSERTS ) assert pos >= 0;
 		//Commented by FC> if ( ASSERTS ) assert pos <= bitVector.length();
-		//Commented by FC> // This test can be eliminated if there is always an additional word at the end of the bit array.
-		//Commented by FC> if ( pos > lastOne ) return numOnes;
+		// This test can be eliminated if there is always an additional word at the end of the bit array.
+		if ( pos > lastOne ) return numOnes;
 
 		final int word = (int)( pos / 64 );
 		final int block = word / 4 & ~1;
