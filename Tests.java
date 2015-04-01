@@ -122,8 +122,8 @@ public class Tests {
 	 */
 	private static final boolean test_substringIterator() {
 		final int STRING_LENGTH = 500;
-		final int N_ITERATIONS = 100;
-		final int N_THREADS = 6;
+		final int N_ITERATIONS = 10;
+		Constants constants = new Constants();
 		int i, j, k, c, dollarPosition;
 		int[] alphabet = new int[] {0,1,2,3};
 		String stringString = new String();
@@ -160,13 +160,15 @@ public class Tests {
 
 			// Building BWT for reporting
 			IntArray bwt = new IntArray(STRING_LENGTH+1,2,true);
-			dollarPosition=Suffixes.blockwiseBWT(string,alphabet,4,2,2,1,bwt,null,null,null,null,null);
+			dollarPosition=Suffixes.blockwiseBWT(string,alphabet,4,2,2,bwt,null,null,null,null,null,constants);
 //System.out.println("BWT: "); bwt.print(); System.out.println();
 
 /*			// Running $SubstringIterator$ with one thread
+			constants.N_THREADS=1;
+			constants.MAX_MEMORY=10;
 			iteratorSubstrings = new HashSet<String>();
-			iterator = new SubstringIterator(string,alphabet,4,10,1,new TestSubstring(4,2,STRING_LENGTH,Utils.log2(STRING_LENGTH),stringString));
-			iterator.run(1);
+			iterator = new SubstringIterator(string,alphabet,4,new TestSubstring(4,2,STRING_LENGTH,Utils.log2(STRING_LENGTH),stringString),constants);
+			iterator.run();
 			iteratorSubstringsArray = new String[iteratorSubstrings.size()];
 			iteratorSubstrings.toArray(iteratorSubstringsArray);
 			Arrays.sort(iteratorSubstringsArray);
@@ -179,25 +181,27 @@ public class Tests {
 				return false;
 			}
 
-			for (i=0; i<iteratorSubstringsArray.length; i++) {
-				if (Arrays.binarySearch(trueSubstringsArray,iteratorSubstringsArray[i])<0) {
-					System.out.println("Error in SubstringIterator with one thread: the enumerated substring "+iteratorSubstringsArray[i]+" does not exist.");
+			for (int x=0; x<iteratorSubstringsArray.length; x++) {
+				if (Arrays.binarySearch(trueSubstringsArray,iteratorSubstringsArray[x])<0) {
+					System.out.println("Error in SubstringIterator with one thread: the enumerated substring "+iteratorSubstringsArray[x]+" does not exist.");
 					System.out.println("string: "+stringString);
 					return false;
 				}
 			}
-			for (i=0; i<trueSubstringsArray.length; i++) {
-				if (Arrays.binarySearch(iteratorSubstringsArray,trueSubstringsArray[i])<0) {
-					System.out.println("Error in SubstringIterator with one thread: substring "+trueSubstringsArray[i]+" in the string has not been enumerated.");
+			for (int x=0; x<trueSubstringsArray.length; x++) {
+				if (Arrays.binarySearch(iteratorSubstringsArray,trueSubstringsArray[x])<0) {
+					System.out.println("Error in SubstringIterator with one thread: substring "+trueSubstringsArray[x]+" in the string has not been enumerated.");
 					System.out.println("string: "+stringString);
 					return false;
 				}
 			}
 */
 			// Running $SubstringIterator$ with multiple threads
+			constants.N_THREADS=2;
+			constants.MAX_MEMORY=10;
 			iteratorSubstrings = new HashSet<String>();
-			iterator = new SubstringIterator(string,alphabet,4,10,N_THREADS,new TestSubstring(4,2,STRING_LENGTH,Utils.log2(STRING_LENGTH),stringString));
-			iterator.run(N_THREADS);
+			iterator = new SubstringIterator(string,alphabet,4,new TestSubstring(4,2,STRING_LENGTH,Utils.log2(STRING_LENGTH),stringString),constants);
+			iterator.run();
 			iteratorSubstringsArray = new String[iteratorSubstrings.size()];
 			iteratorSubstrings.toArray(iteratorSubstringsArray);
 			Arrays.sort(iteratorSubstringsArray);
@@ -209,21 +213,21 @@ public class Tests {
 				System.out.println("string: "+stringString);
 				return false;
 			}
-			for (i=0; i<iteratorSubstringsArray.length; i++) {
-				if (Arrays.binarySearch(trueSubstringsArray,iteratorSubstringsArray[i])<0) {
-					System.out.println("Error in SubstringIterator with two threads: the enumerated substring "+iteratorSubstringsArray[i]+" does not exist.");
+			for (int x=0; x<iteratorSubstringsArray.length; x++) {
+				if (Arrays.binarySearch(trueSubstringsArray,iteratorSubstringsArray[x])<0) {
+					System.out.println("Error in SubstringIterator with two threads: the enumerated substring "+iteratorSubstringsArray[x]+" does not exist.");
 					System.out.println("string: "+stringString);
 					return false;
 				}
 			}
-			for (i=0; i<trueSubstringsArray.length; i++) {
-				if (Arrays.binarySearch(iteratorSubstringsArray,trueSubstringsArray[i])<0) {
-					System.out.println("Error in SubstringIterator with two threads: substring "+trueSubstringsArray[i]+" in the string has not been enumerated.");
+			for (int x=0; x<trueSubstringsArray.length; x++) {
+				if (Arrays.binarySearch(iteratorSubstringsArray,trueSubstringsArray[x])<0) {
+					System.out.println("Error in SubstringIterator with two threads: substring "+trueSubstringsArray[x]+" in the string has not been enumerated.");
 					System.out.println("string: "+stringString);
 					return false;
 				}
 			}
-
+			System.out.print(".");
 		}
 
 		return true;
@@ -536,6 +540,7 @@ public class Tests {
 		IntArray[] localBlockCounts;
 		suffixes = new IntArray(STRING_LENGTH,Utils.log2(STRING_LENGTH),false);
 		for (i=0; i<STRING_LENGTH; i++) suffixes.push(i);
+		Constants constants = new Constants();
 
 		for (i=0; i<N_ITERATIONS; i++) {
 			string = new IntArray(STRING_LENGTH,2,false);
@@ -543,8 +548,8 @@ public class Tests {
 			bwt = new IntArray(STRING_LENGTH+1,2,true);
 
 			// Checking $SortBWTBlockThread$
-			dollarPosition1=Suffixes.blockwiseBWT(string,alphabet,4,2,BLOCK_SIZE,N_THREADS,bwt,null,null,null,null,null);
-			Suffixes.sort(suffixes,string,random);
+			dollarPosition1=Suffixes.blockwiseBWT(string,alphabet,4,2,BLOCK_SIZE,bwt,null,null,null,null,null,constants);
+			Suffixes.sort(suffixes,string,random,constants);
 			for (j=0; j<STRING_LENGTH; j++) {
 				suffix=suffixes.getElementAt(j);
 				if (suffix==0) {
@@ -567,7 +572,7 @@ public class Tests {
 			blockStarts = new IntArray(N_BLOCKS,Utils.log2(STRING_LENGTH),true);
 			dollar = new long[3];
 			localBlockCounts = new IntArray[N_BLOCKS];
-			dollarPosition2=Suffixes.blockwiseBWT(string,alphabet,4,2,BLOCK_SIZE,N_THREADS,null,waveletTrees,blockStarts,bitVector,localBlockCounts,dollar);
+			dollarPosition2=Suffixes.blockwiseBWT(string,alphabet,4,2,BLOCK_SIZE,null,waveletTrees,blockStarts,bitVector,localBlockCounts,dollar,constants);
 			blockBoundaries = new Rank9(bitVector);
 			boolean isOK = true;
 			for (int x=0; x<STRING_LENGTH+1; x++) {
@@ -765,6 +770,7 @@ public class Tests {
 		int i, j, h, suffix, block;
 		IntArray string, splitters, cache;
 		XorShiftStarRandom random = new XorShiftStarRandom();
+		Constants constants = new Constants();
 
 		// Building a new string
 		string = new IntArray(STRING_LENGTH,2,false);
@@ -776,7 +782,7 @@ public class Tests {
 		for (i=0; i<N_ITERATIONS; i++) {
 			splitters.clear();
 			for (j=0; j<N_SPLITTERS; j++) splitters.push(random.nextInt(STRING_LENGTH));
-			Suffixes.sort(splitters,string,random);
+			Suffixes.sort(splitters,string,random,constants);
 			if (cache!=null) cache.clear(); cache=Suffixes.buildBinarySearchCache(splitters,string);
 			for (suffix=0; suffix<STRING_LENGTH; suffix++) {
 				if (splitters.linearSearch(suffix)>=0) continue;
@@ -823,6 +829,7 @@ public class Tests {
 		int i, j, h, suffix, block;
 		IntArray string, splitters, cache;
 		XorShiftStarRandom random = new XorShiftStarRandom();
+		Constants constants = new Constants();
 
 		// Building a new string
 		string = new IntArray(STRING_LENGTH,2,false);
@@ -834,7 +841,7 @@ public class Tests {
 		for (i=0; i<N_ITERATIONS; i++) {
 			splitters.clear();
 			for (j=0; j<N_SPLITTERS; j++) splitters.push(random.nextInt(STRING_LENGTH));
-			Suffixes.sort(splitters,string,random);
+			Suffixes.sort(splitters,string,random,constants);
 			if (cache!=null) cache.clear();
 			cache=Suffixes.buildBinarySearchCache(splitters,string);
 			if (cache.length()!=2*(splitters.length()-2)) {
@@ -867,20 +874,21 @@ public class Tests {
 		int i, j, h, low, high;
 		IntArray string, lcpLow, lcpHigh, out;
 		XorShiftStarRandom random = new XorShiftStarRandom();
+		Constants constants = new Constants();
 
 		// Building a new string
 		string = new IntArray(STRING_LENGTH,2,false);
 		for (i=0; i<STRING_LENGTH; i++) string.push(random.nextInt(4));
-		lcpLow = new IntArray(Suffixes.DISTINGUISHING_PREFIX+1,Utils.log2(STRING_LENGTH<<1),false);
-		lcpHigh = new IntArray(Suffixes.DISTINGUISHING_PREFIX+1,Utils.log2(STRING_LENGTH<<1),false);
+		lcpLow = new IntArray(constants.DISTINGUISHING_PREFIX+1,Utils.log2(STRING_LENGTH<<1),false);
+		lcpHigh = new IntArray(constants.DISTINGUISHING_PREFIX+1,Utils.log2(STRING_LENGTH<<1),false);
 		out = new IntArray(STRING_LENGTH-2,Utils.log2(STRING_LENGTH),false);
 
 		// Testing
 		for (i=0; i<N_INTERVALS; i++) {
 			low=random.nextInt(STRING_LENGTH);
 			do { high=random.nextInt(STRING_LENGTH); } while (high==low);
-			lcpLow.clear(); Suffixes.buildLCPArray(low,string,lcpLow);
-			lcpHigh.clear(); Suffixes.buildLCPArray(high,string,lcpHigh);
+			lcpLow.clear(); Suffixes.buildLCPArray(low,string,lcpLow,constants);
+			lcpHigh.clear(); Suffixes.buildLCPArray(high,string,lcpHigh,constants);
 
 			out.clear(); Suffixes.intervalOfSuffixes(low,high,lcpLow,lcpHigh,string,out);
 			if (!checkSuffixesInOut(low,high,out,string)) return false;
@@ -949,6 +957,7 @@ public class Tests {
 		int i, j, k, h, tmp, length, suffix, sign, predictedSign, predictedLCP, lcp, lcpArray;
 		IntArray string, out;
 		XorShiftStarRandom random = new XorShiftStarRandom();
+		Constants constants = new Constants();
 
 		// Building a new string
 		string = new IntArray(STRING_LENGTH,2,false);
@@ -959,10 +968,10 @@ public class Tests {
 
 		// Testing LCP values
 		for (i=0; i<N_SUFFIXES; i++) {
-			suffix=random.nextInt(STRING_LENGTH-Suffixes.DISTINGUISHING_PREFIX+1);
+			suffix=random.nextInt(STRING_LENGTH-constants.DISTINGUISHING_PREFIX+1);
 			out.clear();
-			Suffixes.buildLCPArray(suffix,string,out);
-			for (j=1; j<=Suffixes.DISTINGUISHING_PREFIX; j++) {
+			Suffixes.buildLCPArray(suffix,string,out,constants);
+			for (j=1; j<=constants.DISTINGUISHING_PREFIX; j++) {
 				lcp=string.lcp(suffix,suffix+j,true);
 				length=lcp&Utils.MSB_INT_ZERO;
 				sign=lcp&Utils.MSB_INT_ONE;

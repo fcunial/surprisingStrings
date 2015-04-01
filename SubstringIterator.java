@@ -30,6 +30,7 @@ public class SubstringIterator {
 	private final int alphabetLength, log2alphabetLength;
 	private int nBlocks;
 	private Substring SUBSTRING_CLASS;  // Subclass of $Substring$ to be used during navigation
+	private Constants constants;
 
 	/**
 	 * BWT index
@@ -49,19 +50,16 @@ public class SubstringIterator {
 
 
 	/**
-	 * @param maxMemory maximum number of bytes to be used during construction (in
-	 * addition to those used by $string$); influences the number of blocks;
-	 * @param nThreads maximum number of threads to be used during construction;
-	 * influences the number of blocks;
 	 * @param substringClass subclass of $Substring$ to be used during navigation.
 	 */
-	public SubstringIterator(IntArray string, int[] alphabet, int alphabetLength, long maxMemory, int nThreads, Substring substringClass) {
+	public SubstringIterator(IntArray string, int[] alphabet, int alphabetLength, Substring substringClass, Constants constants) {
+		this.constants=constants;
 		final int stringLength = string.length();
 		final int log2stringLength = Utils.log2(stringLength);
 		final int log2stringLengthPlusOne = Utils.log2(stringLength+1);
 		this.alphabetLength=alphabetLength;
 		log2alphabetLength=Utils.log2(alphabetLength);
-		int blockSize = Suffixes.blockwiseBWT_getBlockSize(maxMemory<<3,nThreads,stringLength,log2stringLength,log2alphabetLength);
+		int blockSize = Suffixes.blockwiseBWT_getBlockSize(stringLength,log2stringLength,log2alphabetLength,constants);
 		nBlocks=Utils.divideAndRoundUp(stringLength,blockSize);  // This value is just an upper bound: $Suffixes.blockwiseBWT$ will set the effective number of blocks.
 		if (nBlocks<4) nBlocks=4;
 		waveletTrees = new HuffmanWaveletTree[nBlocks];
@@ -69,7 +67,7 @@ public class SubstringIterator {
 		dollar = new long[3];
 		IntArray[] localBlockCounts = new IntArray[nBlocks];
 		IntArray bitVector = new IntArray(stringLength+1,1,true);
-		Suffixes.blockwiseBWT(string,alphabet,alphabetLength,log2alphabetLength,blockSize,nThreads,null,waveletTrees,blockStarts,bitVector,localBlockCounts,dollar);
+		Suffixes.blockwiseBWT(string,alphabet,alphabetLength,log2alphabetLength,blockSize,null,waveletTrees,blockStarts,bitVector,localBlockCounts,dollar,constants);
 		blockBoundaries = new Rank9(bitVector);
 		bitVector.deallocate(); bitVector=null;
 		nBlocks=blockStarts.length();  // Setting the effective number of blocks
@@ -270,13 +268,13 @@ public class SubstringIterator {
 	/**
 	 * @param nThreads maximum number of threads to be used during traversal.
 	 */
-	public void run(int nThreads) {
+	public void run() {
 		int i, nCharacters;
 		long previous;
-		SubstringIteratorThread[] threads = new SubstringIteratorThread[nThreads];
+		SubstringIteratorThread[] threads = new SubstringIteratorThread[constants.N_THREADS];
 		AtomicInteger donorGenerator = new AtomicInteger();
-		CountDownLatch latch = new CountDownLatch(nThreads);
-		for (i=0; i<nThreads; i++) threads[i] = new SubstringIteratorThread(threads,i,donorGenerator,latch);
+		CountDownLatch latch = new CountDownLatch(constants.N_THREADS);
+		for (i=0; i<constants.N_THREADS; i++) threads[i] = new SubstringIteratorThread(threads,i,donorGenerator,latch);
 
 		// Initializing the stack of $threads[0]$ with $\epsilon$, the distinct characters
 		// in the text, and $\$$. The distinct characters in the text might be a proper
@@ -311,7 +309,7 @@ public class SubstringIterator {
 		lengthOneSubstrings=null;
 
 		// Launching all threads
-		for (i=0; i<nThreads; i++) threads[i].start();
+		for (i=0; i<constants.N_THREADS; i++) threads[i].start();
 		try { latch.await(); }
 		catch(InterruptedException e) {
 			e.printStackTrace();
@@ -352,32 +350,7 @@ public class SubstringIterator {
 	 * imbalance and communication overheads that come from dynamic workpackets of
 	 * variable size.
 	 */
-	private class SubstringIteratorThread extends Thread {
-		/**
-		 * Number of longs allocated to each region of the stack (a power of two).
-		 * Balances between space and time. Must be tuned empirically.
-		 */
-		private static final int LONGS_PER_REGION = 8;
-
-		/**
-		 * Number of work-stealing attempts performed by each thread before terminating.
-		 * Must be tuned empirically.
-		 */
-		private static final int N_STEALING_ATTEMPTS = 8;
-
-		/**
-		 * Only strings of length at most $MAX_STRING_LENGTH_FOR_SPLIT$ are stolen from
-		 * the donor. Must be at least 1. Must be tuned empirically.
-		 */
-		private static final int MAX_STRING_LENGTH_FOR_SPLIT = 32;
-
-		/**
-		 * The stack of the donor thread is split iff it contains at least
-		 * $DONOR_STACK_LOWERBOUND$ strings of length at most $MAX_STRING_LENGTH_FOR_SPLIT$
-		 * that have not yet been extended. Must be tuned empirically.
-		 */
-		private static final int DONOR_STACK_LOWERBOUND = 2;
-
+	protected class SubstringIteratorThread extends Thread {
 		/**
 		 * Number of stack pointers used by $Substring$ objects
 		 */
@@ -427,7 +400,7 @@ public class SubstringIterator {
 			this.threadID=threadID;
 			this.donorGenerator=donorGenerator;
 			this.latch=latch;
-			stack = new Stream(LONGS_PER_REGION);
+			stack = new Stream(constants.LONGS_PER_REGION);
 			random = new XorShiftStarRandom();
 		}
 
@@ -459,13 +432,13 @@ public class SubstringIterator {
 			Substring w = SUBSTRING_CLASS.getInstance();
 
 			isAlive=true;
-			if (nThreads>1 && stack.getPosition()==0) stealWork();
+			if (constants.N_THREADS>1 && stack.getPosition()==0) stealWork();
 			while (stack.getPosition()>0) {
 				// Exhausting the current stack
 				while (true) {
 					synchronized(this) {
 						if (stack.getPosition()>0) {
-							extendLeft(stack,w,leftExtensions,positions,multirankStack,multirankOutput,multirankOnes,MAX_STRING_LENGTH_FOR_SPLIT,extendLeftOutput);
+							extendLeft(stack,w,leftExtensions,positions,multirankStack,multirankOutput,multirankOnes,constants.MAX_STRING_LENGTH_FOR_SPLIT,extendLeftOutput);
 							nStrings+=extendLeftOutput[0];
 							nStringsNotExtended+=extendLeftOutput[1];
 							nShortStringsNotExtended+=extendLeftOutput[2];
@@ -474,7 +447,7 @@ public class SubstringIterator {
 					}
 				}
 				// Trying to get a new stack
-				if (nThreads>1) stealWork();
+				if (constants.N_THREADS>1) stealWork();
 			}
 			// Terminating if unable to steal work
 			isAlive=false;
@@ -490,19 +463,19 @@ public class SubstringIterator {
 			int i, d;
 			Substring w = SUBSTRING_CLASS.getInstance();
 
-			for (i=0; i<N_STEALING_ATTEMPTS; i++) {
+			for (i=0; i<constants.N_STEALING_ATTEMPTS; i++) {
 				do {
 					d=donorGenerator.getAndIncrement()%nThreads;
 					donor=threads[d];
 				}
 				while (d==threadID);
-				if (!donor.isAlive || donor.nStringsNotExtended<DONOR_STACK_LOWERBOUND) continue;  // Not synchronized: this is just a guess.
+				if (!donor.isAlive || donor.nShortStringsNotExtended<constants.DONOR_STACK_LOWERBOUND) continue;  // Not synchronized: this is just a guess.
 				synchronized(donor) {
-					if (!donor.isAlive || donor.nStringsNotExtended<DONOR_STACK_LOWERBOUND) continue;  // Checking again before stealing
+					if (!donor.isAlive || donor.nShortStringsNotExtended<constants.DONOR_STACK_LOWERBOUND) continue;  // Checking again before stealing
 					donorStack=donor.stack;
 					donorStackLength=donorStack.length();
-					newDonorStack = new Stream(donorStack.LONGS_PER_REGION);
-					newStack = new Stream(donorStack.LONGS_PER_REGION);
+					newDonorStack = new Stream(constants.LONGS_PER_REGION);
+					newStack = new Stream(constants.LONGS_PER_REGION);
 					nStrings=0;
 					nStringsNotExtended=0;
 					nShortStringsNotExtended=0;
@@ -514,7 +487,7 @@ public class SubstringIterator {
 					while (donorStack.getPosition()<donorStackLength) {
 						w.read(donorStack);
 						if (w.hasBeenExtended) copyExtendedString(w);
-						else copyString(w);
+						else copyNonExtendedString(w);
 					}
 					donorStack.deallocate();
 					donor.stack=newDonorStack;
@@ -568,31 +541,34 @@ public class SubstringIterator {
 
 
 		/**
-		 * Strings in the donor stack that have not been extended are partitioned
-		 * approximately equally between the new donor stack and the new receiver stack.
+		 * Strings in the donor stack that have not been extended and whose length is
+		 * $<=constants.MAX_STRING_LENGTH_FOR_SPLIT$ are partitioned approximately equally
+		 * between the new donor stack and the new receiver stack. Strings in the donor
+		 * stack that have not been extended and whose length is
+		 * $>constants.MAX_STRING_LENGTH_FOR_SPLIT$ are kept in the donor stack.
 		 */
-		private final void copyString(Substring w) {
+		private final void copyNonExtendedString(Substring w) {
 			int i;
 
-			if (random.nextBoolean()) {
-				// New donor stack
-				w.stackPointers[1]=newDonorStack_previousSubstringAddress;
-				for (i=MIN_POINTERS-1; i<N_POINTERS; i++) w.stackPointers[i]=translator[1][Arrays.binarySearch(translator[0],0,translator_last+1,w.stackPointers[i])];
-				w.push(newDonorStack);
-				newDonorStack_previousSubstringAddress=w.stackPointers[0];
-			}
-			else {
+			if (w.length<=constants.MAX_STRING_LENGTH_FOR_SPLIT && random.nextBoolean()) {
 				// New receiver stack
 				w.stackPointers[1]=newStack_previousSubstringAddress;
 				for (i=MIN_POINTERS-1; i<N_POINTERS; i++) w.stackPointers[i]=translator[2][Arrays.binarySearch(translator[0],0,translator_last+1,w.stackPointers[i])];
 				w.push(newStack);
 				nStrings++; nStringsNotExtended++;
 				donor.nStrings--; donor.nStringsNotExtended--;
-				if (w.length<=MAX_STRING_LENGTH_FOR_SPLIT) {
+				if (w.length<=constants.MAX_STRING_LENGTH_FOR_SPLIT) {
 					nShortStringsNotExtended++;
 					donor.nShortStringsNotExtended--;
 				}
 				newStack_previousSubstringAddress=w.stackPointers[0];
+			}
+			else {
+				// New donor stack
+				w.stackPointers[1]=newDonorStack_previousSubstringAddress;
+				for (i=MIN_POINTERS-1; i<N_POINTERS; i++) w.stackPointers[i]=translator[1][Arrays.binarySearch(translator[0],0,translator_last+1,w.stackPointers[i])];
+				w.push(newDonorStack);
+				newDonorStack_previousSubstringAddress=w.stackPointers[0];
 			}
 		}
 
