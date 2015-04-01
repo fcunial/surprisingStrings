@@ -121,8 +121,8 @@ public class Tests {
 	 * small strings.
 	 */
 	private static final boolean test_substringIterator() {
-		final int STRING_LENGTH = 500;
-		final int N_ITERATIONS = 10;
+		final int STRING_LENGTH = 100;
+		final int N_ITERATIONS = 100;
 		Constants constants = new Constants();
 		int i, j, k, c, dollarPosition;
 		int[] alphabet = new int[] {0,1,2,3};

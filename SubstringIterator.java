@@ -379,22 +379,17 @@ public class SubstringIterator {
 		 * $stealWork$-related variables
 		 */
 		private SubstringIteratorThread donor;
-		private Stream donorStack, newDonorStack, newStack;  // Old donor stack, new donor stack, new receiver stack.
+		private Stream donorStack;
 		private long donorStackLength;  // In bits
-		private long newDonorStack_previousSubstringAddress;
 		private long newStack_previousSubstringAddress;
-		private long[][] translator;  // Temporary, reused matrix with 3 rows: translates pointers of extended strings in $donorStack$ to pointers of extended strings in $newDonorStack$ and in $newStack$.
+		private long[][] translator;  // Temporary, reused matrix with 2 rows: translates pointers of extended strings in $donorStack$ to pointers of extended strings in the new (receiver) $stack$.
 		private int translator_last;  // Last column used in $translator$
-		private long[][] buffer;  // Temporary, reused array.
 		private XorShiftStarRandom random;
 
-		/**
-		 * @param nThreads assumed to be a power of two.
-		 */
+
 		public SubstringIteratorThread(SubstringIteratorThread[] threads, int threadID, AtomicInteger donorGenerator, CountDownLatch latch) {
 			MIN_POINTERS=Substring.MIN_POINTERS;
 			N_POINTERS=SUBSTRING_CLASS.nPointers;
-			buffer = new long[2][N_POINTERS];
 			this.threads=threads;
 			nThreads=threads.length;
 			this.threadID=threadID;
@@ -410,10 +405,7 @@ public class SubstringIterator {
 			threads=null;
 			donor=null;
 			donorStack=null;
-			newDonorStack=null;
-			newStack=null;
 			translator=null;
-			buffer=null;
 			random=null;
 		}
 
@@ -474,27 +466,23 @@ public class SubstringIterator {
 					if (!donor.isAlive || donor.nShortStringsNotExtended<constants.DONOR_STACK_LOWERBOUND) continue;  // Checking again before stealing
 					donorStack=donor.stack;
 					donorStackLength=donorStack.length();
-					newDonorStack = new Stream(constants.LONGS_PER_REGION);
-					newStack = new Stream(constants.LONGS_PER_REGION);
+					stack.clear();
 					nStrings=0;
 					nStringsNotExtended=0;
 					nShortStringsNotExtended=0;
-					newDonorStack_previousSubstringAddress=0;
 					newStack_previousSubstringAddress=0;
-					translator = new long[3][donor.nStrings-donor.nStringsNotExtended];
+					translator = new long[2][donor.nStrings-donor.nStringsNotExtended];
 					translator_last=-1;
+					long backupPointer = donorStack.getPosition();
 					donorStack.setPosition(0);
 					while (donorStack.getPosition()<donorStackLength) {
 						w.read(donorStack);
-						if (w.hasBeenExtended) copyExtendedString(w);
-						else copyNonExtendedString(w);
+						if (w.length>constants.MAX_STRING_LENGTH_FOR_SPLIT) break;
+						if (w.hasBeenExtended) copyShortExtendedString(w);
+						else copyShortNonExtendedString(w);
 					}
-					donorStack.deallocate();
-					donor.stack=newDonorStack;
-					donor.stack.setPosition(newDonorStack_previousSubstringAddress);
-					stack.deallocate();
-					stack=newStack;
 					stack.setPosition(newStack_previousSubstringAddress);
+					donorStack.setPosition(backupPointer);
 					return;
 				}
 			}
@@ -502,40 +490,19 @@ public class SubstringIterator {
 
 
 		/**
-		 * Extended strings in the donor stack are copied both to the new donor stack and
-		 * to the new receiver stack.
+		 * Extended strings in the donor stack are copied to the new receiver stack
 		 */
-		private final void copyExtendedString(Substring w) {
-			int i, k;
-
-			// Translating pointers and updating $translator$
+		private final void copyShortExtendedString(Substring w) {
 			translator_last++;
 			translator[0][translator_last]=w.stackPointers[0];
-			for (i=MIN_POINTERS-1; i<N_POINTERS; i++) {
-				if (w.stackPointers[i]==0) {
-					buffer[0][i]=0;
-					buffer[1][i]=0;
-				}
-				else {
-					k=Arrays.binarySearch(translator[0],0,translator_last,w.stackPointers[i]);
-					buffer[0][i]=translator[1][k];
-					buffer[1][i]=translator[2][k];
-				}
+			for (int i=MIN_POINTERS-1; i<N_POINTERS; i++) {
+				if (w.stackPointers[i]==0) w.stackPointers[i]=0;
+				else w.stackPointers[i]=translator[1][Arrays.binarySearch(translator[0],0,translator_last,w.stackPointers[i])];
 			}
-
-			// New donor stack
-			w.stackPointers[1]=newDonorStack_previousSubstringAddress;
-			for (i=MIN_POINTERS-1; i<N_POINTERS; i++) w.stackPointers[i]=buffer[0][i];
-			w.push(newDonorStack);
-			translator[1][translator_last]=w.stackPointers[0];
-			newDonorStack_previousSubstringAddress=w.stackPointers[0];
-
-			// New receiver stack
 			w.stackPointers[1]=newStack_previousSubstringAddress;
-			for (i=MIN_POINTERS-1; i<N_POINTERS; i++) w.stackPointers[i]=buffer[1][i];
-			w.push(newStack);
+			w.push(stack);
 			nStrings++;
-			translator[2][translator_last]=w.stackPointers[0];
+			translator[1][translator_last]=w.stackPointers[0];
 			newStack_previousSubstringAddress=w.stackPointers[0];
 		}
 
@@ -543,32 +510,22 @@ public class SubstringIterator {
 		/**
 		 * Strings in the donor stack that have not been extended and whose length is
 		 * $<=constants.MAX_STRING_LENGTH_FOR_SPLIT$ are partitioned approximately equally
-		 * between the new donor stack and the new receiver stack. Strings in the donor
-		 * stack that have not been extended and whose length is
-		 * $>constants.MAX_STRING_LENGTH_FOR_SPLIT$ are kept in the donor stack.
+		 * between the new donor stack and the new receiver stack.
 		 */
-		private final void copyNonExtendedString(Substring w) {
-			int i;
-
-			if (w.length<=constants.MAX_STRING_LENGTH_FOR_SPLIT && random.nextBoolean()) {
-				// New receiver stack
-				w.stackPointers[1]=newStack_previousSubstringAddress;
-				for (i=MIN_POINTERS-1; i<N_POINTERS; i++) w.stackPointers[i]=translator[2][Arrays.binarySearch(translator[0],0,translator_last+1,w.stackPointers[i])];
-				w.push(newStack);
-				nStrings++; nStringsNotExtended++;
-				donor.nStrings--; donor.nStringsNotExtended--;
-				if (w.length<=constants.MAX_STRING_LENGTH_FOR_SPLIT) {
-					nShortStringsNotExtended++;
-					donor.nShortStringsNotExtended--;
+		private final void copyShortNonExtendedString(Substring w) {
+			if (random.nextBoolean()) {
+				long backupPointer = donorStack.getPosition();
+				w.markAsExtended(donorStack);  // Will be automatically popped out and discarded by $extendLeft$
+				donorStack.setPosition(backupPointer);
+				donor.nStringsNotExtended--; donor.nShortStringsNotExtended--;
+				for (int i=MIN_POINTERS-1; i<N_POINTERS; i++) {
+					if (w.stackPointers[i]==0) w.stackPointers[i]=0;
+					else w.stackPointers[i]=translator[1][Arrays.binarySearch(translator[0],0,translator_last+1,w.stackPointers[i])];
 				}
+				w.stackPointers[1]=newStack_previousSubstringAddress;
+				w.push(stack);
+				nStrings++; nStringsNotExtended++; nShortStringsNotExtended++;
 				newStack_previousSubstringAddress=w.stackPointers[0];
-			}
-			else {
-				// New donor stack
-				w.stackPointers[1]=newDonorStack_previousSubstringAddress;
-				for (i=MIN_POINTERS-1; i<N_POINTERS; i++) w.stackPointers[i]=translator[1][Arrays.binarySearch(translator[0],0,translator_last+1,w.stackPointers[i])];
-				w.push(newDonorStack);
-				newDonorStack_previousSubstringAddress=w.stackPointers[0];
 			}
 		}
 
