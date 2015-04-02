@@ -382,8 +382,8 @@ public class SubstringIterator {
 		private Stream donorStack;
 		private long donorStackLength;  // In bits
 		private long newStack_previousSubstringAddress;
-		private long[][] translator;  // Temporary, reused matrix with 2 rows: translates pointers of extended strings in $donorStack$ to pointers of extended strings in the new (receiver) $stack$.
-		private int translator_last;  // Last column used in $translator$
+		private Stream translatorFrom, translatorTo;  // Translate pointers of extended strings in $donorStack$ ($translatorFrom[i]$) to pointers of extended strings in the new (receiver) $stack$ ($translatorTo[i]$).
+		private long translator_last;  // Last element used in $translator*$
 		private XorShiftStarRandom random;
 
 
@@ -397,6 +397,8 @@ public class SubstringIterator {
 			this.latch=latch;
 			stack = new Stream(constants.LONGS_PER_REGION);
 			random = new XorShiftStarRandom();
+			translatorFrom = new Stream(constants.LONGS_PER_REGION);
+			translatorTo = new Stream(constants.LONGS_PER_REGION);
 		}
 
 
@@ -405,7 +407,8 @@ public class SubstringIterator {
 			threads=null;
 			donor=null;
 			donorStack=null;
-			translator=null;
+			translatorFrom.deallocate(); translatorFrom=null;
+			translatorTo.deallocate(); translatorTo=null;
 			random=null;
 		}
 
@@ -450,9 +453,11 @@ public class SubstringIterator {
 
 		/**
 		 * Remark: there is no need to get a lock on $this$ while running $stealWork$.
+		 * Remark: the procedure avoids reallocating memory.
 		 */
 		private final void stealWork() {
 			int i, d;
+			long copied, toBeCopied;
 			Substring w = SUBSTRING_CLASS.getInstance();
 
 			for (i=0; i<constants.N_STEALING_ATTEMPTS; i++) {
@@ -466,20 +471,22 @@ public class SubstringIterator {
 					if (!donor.isAlive || donor.nShortStringsNotExtended<constants.DONOR_STACK_LOWERBOUND) continue;  // Checking again before stealing
 					donorStack=donor.stack;
 					donorStackLength=donorStack.length();
-					stack.clear();
+					stack.clear(false);  // Avoids reallocation
 					nStrings=0;
 					nStringsNotExtended=0;
 					nShortStringsNotExtended=0;
 					newStack_previousSubstringAddress=0;
-					translator = new long[2][donor.nStrings-donor.nStringsNotExtended];
+					translatorFrom.clear(false);  // Avoids reallocation
+					translatorTo.clear(false);  // Avoids reallocation
 					translator_last=-1;
+					toBeCopied=donor.nShortStringsNotExtended>>1;
+					copied=0;
 					long backupPointer = donorStack.getPosition();
 					donorStack.setPosition(0);
-					while (donorStack.getPosition()<donorStackLength) {
+					while (copied<toBeCopied) {
 						w.read(donorStack);
-						if (w.length>constants.MAX_STRING_LENGTH_FOR_SPLIT) break;
-						if (w.hasBeenExtended) copyShortExtendedString(w);
-						else copyShortNonExtendedString(w);
+						if (!w.hasBeenExtended) copied++;
+						copy(w);
 					}
 					stack.setPosition(newStack_previousSubstringAddress);
 					donorStack.setPosition(backupPointer);
@@ -490,43 +497,42 @@ public class SubstringIterator {
 
 
 		/**
-		 * Extended strings in the donor stack are copied to the new receiver stack
+		 * Extended strings in the donor stack are copied to the new receiver stack.
+		 * Non-extended strings in the donor stack are copied to the new receiver stack
+		 * and marked as extended in the donor stack, so that they will be automatically
+		 * popped out and discarded by $extendLeft$.
+		 *
+ 		 * Problem: since a stolen nonextended string is marked as extended in the donor
+ 		 * stack, it will be copied to all other receivers that steal from the same
+ 		 * donor. We should introduce another bit in $Substring$ to signal that a string
+ 		 * has been stolen.
 		 */
-		private final void copyShortExtendedString(Substring w) {
-			translator_last++;
-			translator[0][translator_last]=w.stackPointers[0];
+		private final void copy(Substring w) {
+			if (w.hasBeenExtended) {
+				translator_last++;
+				translatorFrom.push(w.stackPointers[0],64);
+			}
+			else {
+				w.markAsExtended(donorStack);
+				donor.nStringsNotExtended--;
+				donor.nShortStringsNotExtended--;
+			}
 			for (int i=MIN_POINTERS-1; i<N_POINTERS; i++) {
 				if (w.stackPointers[i]==0) w.stackPointers[i]=0;
-				else w.stackPointers[i]=translator[1][Arrays.binarySearch(translator[0],0,translator_last,w.stackPointers[i])];
+				else {
+					translatorTo.setPosition(translatorFrom.binarySearch(0,w.hasBeenExtended?translator_last:translator_last+1,w.stackPointers[i],64,6));
+					w.stackPointers[i]=translatorTo.read(64);
+				}
 			}
 			w.stackPointers[1]=newStack_previousSubstringAddress;
 			w.push(stack);
 			nStrings++;
-			translator[1][translator_last]=w.stackPointers[0];
-			newStack_previousSubstringAddress=w.stackPointers[0];
-		}
-
-
-		/**
-		 * Strings in the donor stack that have not been extended and whose length is
-		 * $<=constants.MAX_STRING_LENGTH_FOR_SPLIT$ are partitioned approximately equally
-		 * between the new donor stack and the new receiver stack.
-		 */
-		private final void copyShortNonExtendedString(Substring w) {
-			if (random.nextBoolean()) {
-				long backupPointer = donorStack.getPosition();
-				w.markAsExtended(donorStack);  // Will be automatically popped out and discarded by $extendLeft$
-				donorStack.setPosition(backupPointer);
-				donor.nStringsNotExtended--; donor.nShortStringsNotExtended--;
-				for (int i=MIN_POINTERS-1; i<N_POINTERS; i++) {
-					if (w.stackPointers[i]==0) w.stackPointers[i]=0;
-					else w.stackPointers[i]=translator[1][Arrays.binarySearch(translator[0],0,translator_last+1,w.stackPointers[i])];
-				}
-				w.stackPointers[1]=newStack_previousSubstringAddress;
-				w.push(stack);
-				nStrings++; nStringsNotExtended++; nShortStringsNotExtended++;
-				newStack_previousSubstringAddress=w.stackPointers[0];
+			if (w.hasBeenExtended) translatorTo.push(w.stackPointers[0],64);
+			else {
+				nStringsNotExtended++;
+				nShortStringsNotExtended++;
 			}
+			newStack_previousSubstringAddress=w.stackPointers[0];
 		}
 
 	}  // SubstringIteratorThread

@@ -201,7 +201,9 @@ public class Tests {
 			constants.MAX_MEMORY=10;
 			iteratorSubstrings = new HashSet<String>();
 			iterator = new SubstringIterator(string,alphabet,4,new TestSubstring(4,2,STRING_LENGTH,Utils.log2(STRING_LENGTH),stringString),constants);
+			System.out.print("(");
 			iterator.run();
+			System.out.print(")");
 			iteratorSubstringsArray = new String[iteratorSubstrings.size()];
 			iteratorSubstrings.toArray(iteratorSubstringsArray);
 			Arrays.sort(iteratorSubstringsArray);
@@ -227,7 +229,6 @@ public class Tests {
 					return false;
 				}
 			}
-			System.out.print(".");
 		}
 
 		return true;
@@ -278,7 +279,7 @@ public class Tests {
 
 		for (t=0; t<N_ITERATIONS; t++) {
 			// Pushing random $Substring$ objects on the stack
-			stack.clear(); stack.setPosition(0L);
+			stack.clear(true); stack.setPosition(0L);
 			substrings[0] = new Substring(4,2,TEXT_LENGTH,Utils.log2(TEXT_LENGTH));
 			substrings[0].bwtIntervals[0][0]=0L;
 			substrings[0].bwtIntervals[0][1]=TEXT_LENGTH-1;
@@ -346,8 +347,8 @@ public class Tests {
 
 
 	private static final boolean test_stream() {
-		final int N_ELEMENTS = 100000;
-		final int N_ITERATIONS = 1000;
+		final int N_ELEMENTS = 10000;
+		final int N_ITERATIONS = 100;
 		final int MAX_INT = 100;
 		int i, j, k, t, r, b, position, region, cell, offset;
 		int[] numbers = new int[N_ELEMENTS];
@@ -357,7 +358,7 @@ public class Tests {
 
 		for (t=0; t<N_ITERATIONS; t++) {
 			// Testing $push$
-			stream.clear();
+			stream.clear(true);
 			nBits=0;
 			for (i=0; i<N_ELEMENTS; i++) {
 				r=random.nextInt(MAX_INT);
@@ -428,6 +429,20 @@ public class Tests {
 				while (str.length()<64) str="0"+str;
 				System.err.println("Error in Stream.setBit: cell="+str+" offset="+offset+" position%64="+(j%64));
 				return false;
+			}
+
+			// Testing $binarySearch$ with 64-bit numbers
+			for (int x=0; x<N_ELEMENTS; x++) numbers[x]=x;
+			stream.clear(true);
+			for (int x=0; x<N_ELEMENTS; x++) stream.push(numbers[x],64);
+			for (int x=0; x<N_ELEMENTS/2; x++) {
+				int p = random.nextInt(N_ELEMENTS);
+				int value = numbers[p];
+				long returnedP = stream.binarySearch(0,N_ELEMENTS,value,64,6);
+				if (returnedP/64!=p) {
+					System.err.println("Error in Stream.binarySearch: returnedPosition="+(returnedP/64)+" real position="+p);
+					return false;
+				}
 			}
 
 			/*System.out.print("Testing $skip$... ");

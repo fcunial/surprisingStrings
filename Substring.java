@@ -356,11 +356,14 @@ public class Substring {
 
 
 	/**
-	 * Sets $hasBeenExtended=true$ in the serialized representation of $v$ in $stack$.
-	 * The pointer of $stack$ is moved to the corresponding bit.
+	 * Sets $hasBeenExtended=true$ in the serialized representation of $v$ in $stack$,
+	 * but not in this object. Then, the pointer of $stack$ is restored to its initial
+	 * state.
 	 */
 	protected final void markAsExtended(Stream stack) {
+		long backupPointer = stack.getPosition();
 		stack.setBit(stackPointers[0]+log2address);
+		stack.setPosition(backupPointer);
 	}
 
 }

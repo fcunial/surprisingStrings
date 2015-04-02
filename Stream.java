@@ -30,8 +30,8 @@ public class Stream {
 	}
 
 
-	public void clear() {
-		regions = new long[1][LONGS_PER_REGION];
+	public void clear(boolean deallocate) {
+		if (deallocate) regions = new long[1][LONGS_PER_REGION];
 		topRegion=0; topCell=0; topOffset=0;
 		nBits=0;
 	}
@@ -197,6 +197,44 @@ public class Stream {
 		setPosition(address);
 		regions[pointerRegion][pointerCell]|=Utils.oneSelectors1[64-pointerOffset-1];
 	}
+
+
+	/**
+	 * Assumes that the stream is the concatenation of $nBits$-bit, distinct integers, in
+	 * increasing order. After the search, the pointer is restored to its initial state.
+	 * Remark: assumes that $toIndex>=fromIndex$. No explicit check is performed.
+	 *
+	 * @param fromIndex rank of the first integer in the sequence of integers; the search
+	 * includes this integer. This is not a position in the stream.
+	 * @param toIndex rank of the last integer in the sequence of integers; the search
+	 * does not include this integer. This is not a position in the stream.
+	 * @return the position of $key$ in the stream, or -1 if $key$ does not occur in the
+	 * stream. This is not the rank of $key$ in the sequence of integers.
+	 */
+	public final long binarySearch(long fromIndex, long toIndex, long key, int nBits, int log2NBits) {
+		long a, z, m, value;
+		long backupPosition = getPosition();
+
+		a=fromIndex;
+		z=toIndex-1;
+		do {
+			m=(z+a)>>1;
+			setPosition(m<<log2NBits);
+			value=read(nBits);
+			if (key==value) {
+				z=a=m;
+				break;
+			}
+			else if (key<value) z=m-1;
+			else a=m+1;
+		}
+		while (z>a);
+
+		setPosition(backupPosition);
+		if (a==z) return a<<log2NBits;
+		else return -1;
+	}
+
 
 }
 

@@ -48,13 +48,18 @@ public class Constants {
 	/**
 	 * Only strings of length at most $MAX_STRING_LENGTH_FOR_SPLIT$ are stolen from
 	 * the donor. Must be at least 1.
+	 * Increasing this value has the drawback of making the receiver scan a longer prefix
+	 * of the donor stack, but it has the advantage of increasing the granularity of the
+	 * stealing.
 	 */
-	public int MAX_STRING_LENGTH_FOR_SPLIT = 32;
+	public int MAX_STRING_LENGTH_FOR_SPLIT = 4;
 
 	/**
 	 * The stack of the donor thread is split iff it contains at least
 	 * $DONOR_STACK_LOWERBOUND$ strings of length at most $MAX_STRING_LENGTH_FOR_SPLIT$
 	 * that have not yet been extended.
+	 * Increasing this value makes the receiver less likely to steal from a thread, but it
+	 * gives more material to the receiver after stealing.
 	 */
 	public int DONOR_STACK_LOWERBOUND = 2;
 
