@@ -353,7 +353,8 @@ public class Tests {
 		int i, j, k, t, r, b, position, region, cell, offset;
 		int[] numbers = new int[N_ELEMENTS];
 		long nBits, read;
-		Stream stream = new Stream(8);
+		Constants constants = new Constants();
+		Stream stream = new Stream(constants.LONGS_PER_REGION);
 		XorShiftStarRandom random = new XorShiftStarRandom();
 
 		for (t=0; t<N_ITERATIONS; t++) {

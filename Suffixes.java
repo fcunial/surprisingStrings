@@ -7,7 +7,8 @@ public class Suffixes {
 
 	/**
 	 * Basic bit-parallel introsort with a cache on $string$. Assumes that the sum of
-	 * the lengths of the distinguishing prefixes of the suffixes in $array$ is small.
+	 * the lengths of the distinguishing prefixes of the suffixes in $array$ is small,
+	 * i.e. that $string$ is not highly repetitive.
 	 * Bits used in addition to the input: $64*array.length()$.
 	 */
 	public static final void sort(IntArray array, IntArray string, XorShiftStarRandom random, Constants constants) {

@@ -1,26 +1,30 @@
 /**
- * A rigid array of integers, encoded each in a fixed number of bits. In what follows, we
- * denote with $v$ the bit string that results from the concatenation of the integers in
- * the array.
+ * A rigid array of integers, encoded each in a fixed number of bits that equals a power
+ * of two. In what follows, we denote with $v$ the bit string that results from the
+ * concatenation of all integers in the array. Since Java allows only $int$ to index an
+ * array, this structure can store a DNA string of length at most 68.719.476.704 (68Gbp)
+ * and a string on alphabet of size $\sigma \in [5..16]$ of length at most 34.359.738.352
+ * (34Gbp). This is not enough, for example, to store the largest metagenome available in
+ * MG-RAST on April 2, 2015, which has length 56.396.775.865.
  *
- * Remark: Mutual exclusion must be ensured by the caller. In particular, the current
+ * Remark: mutual exclusion must be ensured by the caller. In particular, the current
  * implementation does not allow to lock specific substrings of the array, thus requiring
  * each thread to lock the whole array even when it acts on a small region.
  *
  * Remark: there might be the need to re-implement all $IntArray$ to store from right
- * to left, because this could waive some subtractions.
+ * to left inside a long, since this could waive some subtractions.
  *
  */
 public class IntArray {
 
 	private final long[] oneSelectors, zeroSelectors;
 	public final int bitsPerInt, log2BitsPerInt, sixtyFourMinusBitsPerInt, intsPerLong;
-	public int totalBits;
-	protected long[] array;  // Access is protected to allow cloning
+	public long totalBits;
+	protected long[] array;  // Access is $protected$ to allow cloning
 	protected int lastCell;  // First cell available for insertion. Access is protected to allow pasting.
 	protected int lastOffset;  // First offset available for insertion. Access is protected to allow pasting.
-	private int nElements;
-	protected int pointerCell, pointerOffset;  // Pointer used by the stream interface. Access is protected to allow global shifting.
+	private long nElements;
+	protected int pointerCell, pointerOffset;  // Pointer used by the stream interface. Access is $protected$ to allow global shifting.
 
 
 	/**
@@ -30,7 +34,7 @@ public class IntArray {
 	 * is $Utils.closestPowerOfTwo(bpi)$.
 	 * @param fillWithZeros inserts $maxLength$ zeros in the array.
 	 */
-	public IntArray(int maxLength, int bpi, boolean fillWithZeros) {
+	public IntArray(long maxLength, int bpi, boolean fillWithZeros) {
 		int nCells;
 		bitsPerInt=Utils.closestPowerOfTwo(bpi);
 		sixtyFourMinusBitsPerInt=64-bitsPerInt;
@@ -43,13 +47,13 @@ public class IntArray {
 			case 32: log2BitsPerInt=5; intsPerLong=2; oneSelectors=Utils.oneSelectors32; zeroSelectors=Utils.zeroSelectors32; break;
 			default: log2BitsPerInt=0; intsPerLong=64; oneSelectors=Utils.oneSelectors1; zeroSelectors=Utils.zeroSelectors1; break;
 		}
-		nCells=((maxLength<<log2BitsPerInt)>>6)+1;
+		nCells=(int)( ((maxLength<<log2BitsPerInt)>>6)+1 );
 		array = new long[nCells];
 		if (fillWithZeros) {
 			nElements=maxLength;
 			totalBits=maxLength<<log2BitsPerInt;
 			lastCell=nCells-1;
-			lastOffset=(maxLength<<log2BitsPerInt)&Utils.LAST_6_BITS;
+			lastOffset=(int)( (maxLength<<log2BitsPerInt)&Utils.LAST_6_BITS_LONG );
 		}
 		else {
 			nElements=0;
@@ -62,15 +66,15 @@ public class IntArray {
 
 
 	/**
-	 * @param bitsPerInt $1 \leq bitsPerInt < 64$, not necessarily a power of two.
+	 * @param bitsPerInt $1 \leq bitsPerInt \leq 64$, not necessarily a power of two.
 	 */
-	public IntArray(int maxLength, int bitsPerInt) {
+	public IntArray(long maxLength, int bitsPerInt) {
 		this(maxLength,bitsPerInt,false);
 	}
 
 
 	/**
-	 * Builds a copy of this object, which can store at most $nElements$ elements.
+	 * Builds a tight copy of this object, which can store at most $nElements$ elements.
 	 */
 	public final IntArray clone() {
 		IntArray out = new IntArray(nElements,bitsPerInt,true);
@@ -88,7 +92,9 @@ public class IntArray {
 	 * multiple of $bitsPerInt$.
 	 */
 	public final void clear(int forceLastOffset) {
-		lastCell=0; lastOffset=forceLastOffset; nElements=0;
+		lastCell=0;
+		lastOffset=forceLastOffset;
+		nElements=0;
 	}
 
 
@@ -96,7 +102,9 @@ public class IntArray {
 	 * Remark: bits in the array are not explicitly set to zero.
 	 */
 	public final void clear() {
-		lastCell=0; lastOffset=0; nElements=0;
+		lastCell=0;
+		lastOffset=0;
+		nElements=0;
 	}
 
 
@@ -113,7 +121,7 @@ public class IntArray {
 	}
 
 
-	public final int length() {
+	public final long length() {
 		return nElements;
 	}
 
@@ -121,7 +129,7 @@ public class IntArray {
 	public final void print() {
 		//System.out.println("bitsPerInt="+bitsPerInt+" nElements="+nElements);//+" lastCell="+lastCell+" lastOffset="+lastOffset);
 		//for (int i=0; i<nElements; i++) System.out.println(i+": "+getElementAt(i));
-		for (int i=0; i<nElements; i++) System.out.print(getElementAt(i)+" ");
+		for (long i=0; i<nElements; i++) System.out.print(getElementAt(i)+" ");
 		System.out.println();
 	}
 
@@ -133,9 +141,12 @@ public class IntArray {
 	}
 
 
-	public final void printAsSuffixes(IntArray string) {
-		char d = 0;
-		int i, j, stringLength, suffix, c;
+	/**
+	 * All numbers outside $[0..3]$ are interpreted as "n".
+	 */
+	public final void printAsDNASuffixes(IntArray string) {
+		char d = 'n';
+		long i, j, c, stringLength, suffix;
 		String label;
 		stringLength=string.length();
 		for (i=0; i<nElements; i++) {
@@ -147,7 +158,7 @@ public class IntArray {
 				if (suffix+j==stringLength) System.out.print("$");
 				else {
 					c=string.getElementAt((suffix+j)%stringLength);
-					switch (c) {
+					switch ((int)c) {
 						case 0: d='a'; break;
 						case 1: d='c'; break;
 						case 2: d='g'; break;
@@ -164,10 +175,10 @@ public class IntArray {
 	/**
 	 * Positions the pointer at the beginning of element $i$
 	 */
-	public final void setPointer(int i) {
+	public final void setPointer(long i) {
 		i<<=log2BitsPerInt;
-		pointerCell=i>>>6;
-		pointerOffset=i&Utils.LAST_6_BITS;
+		pointerCell=(int)( i>>>6 );
+		pointerOffset=(int)( i&Utils.LAST_6_BITS_LONG );
 	}
 
 
@@ -179,7 +190,7 @@ public class IntArray {
 	 * is assumed to be globally right-shifted by $pointerOffset$ bits.
 	 */
 	public final void pasteAtPointer(IntArray block) {
-		final int blockLastCell, pointerCellPlusBlockLastCell, blockLastOffset;
+		final int blockLastCell, blockLastOffset, pointerCellPlusBlockLastCell;
 		long source;
 
 		// First cell
@@ -206,22 +217,7 @@ public class IntArray {
 	}
 
 
-	/**
-	 * Pushes $value$ at the pointer, and advances the pointer.
-	 * The old value is overwritten.
-	 */
-	/*public final void pushAtPointer(int value) {
-		int tmp;
-		setElementAt(pointerCell,pointerOffset,value);
-		if (pointerOffset==sixtyFourMinusBitsPerInt) {
-			pointerCell++;
-			pointerOffset=0;
-		}
-		else pointerOffset+=bitsPerInt;
-	}*/
-
-
-	public final void push(int value) {
+	public final void push(long value) {
 		int tmp;
 		setElementAt(lastCell,lastOffset,value);
 		if (lastOffset==sixtyFourMinusBitsPerInt) {
@@ -234,8 +230,7 @@ public class IntArray {
 	}
 
 
-	public final void pushFromRight(int value) {
-		int tmp;
+	public final void pushFromRight(long value) {
 		setElementFromRightAt(lastCell,lastOffset,value);
 		if (lastOffset==sixtyFourMinusBitsPerInt) {
 			lastCell++;
@@ -247,7 +242,7 @@ public class IntArray {
 	}
 
 
-	public final int pop() {
+	public final long pop() {
 		if (lastOffset<bitsPerInt) {
 			lastCell--;
 			lastOffset=sixtyFourMinusBitsPerInt+lastOffset;
@@ -263,15 +258,15 @@ public class IntArray {
 	 * interpreted as a sign by Java: removing it allows to implement lexicographic
 	 * comparisons of binary strings with the numerical operators $>$ and $<$.
 	 *
-	 * @return $0 \cdot v[i,i+63)$, assuming that $v[j]=0$ for all
+	 * @return $0 \cdot v[i..i+63)$, assuming that $v[j]=0$ for all
 	 * $j \geq bitsPerInt*nElements$. This assumption simplifies cached LCP computations,
 	 * but it induces an infinite loop when sorting suffixes $(0^{bitsPerInt})^{x}$ and
 	 * $(0^{bitsPerInt})^{y}$: thus, the input array must not have a suffix longer than
 	 * one that consists only of zeros.
 	 */
-	public final long load63(int i) {
-		int cell = i>>>6;
-		int offset = i&Utils.LAST_6_BITS;
+	public final long load63(long i) {
+		int cell = (int)( i>>>6 );
+		int offset = (int)( i&Utils.LAST_6_BITS );
 		if (cell>lastCell || (cell==lastCell&&offset>=lastOffset)) return 0x0L;
 		if (offset==0) {
 			long out = array[cell];
@@ -296,71 +291,65 @@ public class IntArray {
 	}
 
 
-	public final int getElementAt(int i) {
+	public final long getElementAt(long i) {
 		i<<=log2BitsPerInt;
-		return (int)((array[i>>>6]>>>64-(i&Utils.LAST_6_BITS)-bitsPerInt)&oneSelectors[0]);
+		return (array[(int)(i>>>6)]>>>64-(int)(i&Utils.LAST_6_BITS_LONG)-bitsPerInt)&oneSelectors[0];
 	}
 
 
-	private final int getElementAt(int cell, int offset) {
-		return (int)((array[cell]>>>64-offset-bitsPerInt)&oneSelectors[0]);
+	private final long getElementAt(int cell, int offset) {
+		return (array[cell]>>>64-offset-bitsPerInt)&oneSelectors[0];
 	}
 
 
-	public final void setElementAt(long i, int value) {
+	public final void setElementAt(long i, long value) {
 		final int cell, offset;
 		int tmp;
-		long lValue;
 		i<<=log2BitsPerInt;
 		cell=(int)(i>>>6);
-		offset=(int)(i&Utils.LAST_6_BITS);
-		lValue=value;
-		lValue&=oneSelectors[0];
+		offset=(int)(i&Utils.LAST_6_BITS_LONG);
+		value&=oneSelectors[0];
 		tmp=64-offset;
 		if (tmp==bitsPerInt) {
 			array[cell]&=zeroSelectors[0];
-			array[cell]|=lValue;
+			array[cell]|=value;
 		}
 		else {
 			tmp=sixtyFourMinusBitsPerInt-offset;
 			array[cell]&=zeroSelectors[tmp];
-			lValue<<=tmp;
-			array[cell]|=lValue;
+			value<<=tmp;
+			array[cell]|=value;
 		}
 	}
 
 
-	private final void setElementAt(int cell, int offset, int value) {
+	private final void setElementAt(int cell, int offset, long value) {
 		int tmp;
-		long lValue;
-		lValue=value;
-		lValue&=oneSelectors[0];
+		value&=oneSelectors[0];
 		tmp=64-offset;
 		if (tmp==bitsPerInt) {
 			array[cell]&=zeroSelectors[0];
-			array[cell]|=lValue;
+			array[cell]|=value;
 		}
 		else {
 			tmp=sixtyFourMinusBitsPerInt-offset;
 			array[cell]&=zeroSelectors[tmp];
-			lValue<<=tmp;
-			array[cell]|=lValue;
+			value<<=tmp;
+			array[cell]|=value;
 		}
 	}
 
 
-	public final void setElementFromRightAt(long i, int value) {
+	public final void setElementFromRightAt(long i, long value) {
 		final int cell, offset;
 		int tmp;
-		long lValue;
 		i<<=log2BitsPerInt;
 		cell=(int)(i>>>6);
-		offset=(int)(i&Utils.LAST_6_BITS);
-		lValue=value;
-		lValue&=oneSelectors[0];
+		offset=(int)(i&Utils.LAST_6_BITS_LONG);
+		value&=oneSelectors[0];
 		array[cell]&=zeroSelectors[offset];
-		lValue<<=offset;
-		array[cell]|=lValue;
+		value<<=offset;
+		array[cell]|=value;
 	}
 
 
@@ -368,26 +357,24 @@ public class IntArray {
 	 * Stores the last $bitsPerInt$ bits of $value$ in a cell of $array$, from right to
 	 * left. This procedure has no counterpart from the point of view of access.
 	 */
-	private final void setElementFromRightAt(int cell, int offset, int value) {
-		long lValue;
-		lValue=value;
-		lValue&=oneSelectors[0];
+	private final void setElementFromRightAt(int cell, int offset, long value) {
+		value&=oneSelectors[0];
 		array[cell]&=zeroSelectors[offset];
-		lValue<<=offset;
-		array[cell]|=lValue;
+		value<<=offset;
+		array[cell]|=value;
 	}
 
 
 	/**
 	 * Assumes that the number after the increment still fits $bitsPerInt$ bits
 	 */
-	public final void incrementElementAt(int i) {
+	public final void incrementElementAt(long i) {
 		final int cell, offset;
 		int tmp;
 		long value;
 		i<<=log2BitsPerInt;
-		cell=i>>>6;
-		offset=i&Utils.LAST_6_BITS;
+		cell=(int)( i>>>6 );
+		offset=(int)( i&Utils.LAST_6_BITS_LONG );
 		tmp=64-offset;
 		if (tmp==bitsPerInt) {
 			value=(array[cell]&oneSelectors[0])+1;
@@ -424,16 +411,19 @@ public class IntArray {
 	}
 
 
-	public final void swap(int i, int j) {
+	/**
+	 * Swaps the numbers at positions $i$ and $j$
+	 */
+	public final void swap(long i, long j) {
 		final int iCell, jCell, iOffset, jOffset;
 		final int sixtyFourMinusBitsPerIntMinusIOffset, sixtyFourMinusBitsPerIntMinusJOffset;
 		long iValue, jValue;
 		i<<=log2BitsPerInt;
-		iCell=i>>>6;
-		iOffset=i&Utils.LAST_6_BITS;
+		iCell=(int)( i>>>6 );
+		iOffset=(int)( i&Utils.LAST_6_BITS );
 		j<<=log2BitsPerInt;
-		jCell=j>>>6;
-		jOffset=j&Utils.LAST_6_BITS;
+		jCell=(int)( j>>>6 );
+		jOffset=(int)( j&Utils.LAST_6_BITS );
 		sixtyFourMinusBitsPerIntMinusIOffset=sixtyFourMinusBitsPerInt-iOffset;
 		sixtyFourMinusBitsPerIntMinusJOffset=sixtyFourMinusBitsPerInt-jOffset;
 
@@ -447,27 +437,27 @@ public class IntArray {
 
 
 	/**
-	 * Bit-parallel swap of disjoint intervals $[i,i+n-1]$ and $[j,j+n-1]$.
+	 * Bit-parallel swap of disjoint intervals $[i..i+n-1]$ and $[j..j+n-1]$.
 	 */
-	public final void vecswap(int i, int j, int n) {
+	public final void vecswap(long i, long j, long n) {
 		final int iCell, jCell, iOffset, jOffset, lastXCell, xOffset, yOffset, diff;
 		final int sixtyFourMinusDiff, sixtyFourMinusXOffset, sixtyFourMinusYOffset;
-		int k, sixtyFourMinusK, nBits, swappedBits, xCell, yCell;
-		long xBuffer, yBuffer, mask;
+		int k, sixtyFourMinusK, xCell, yCell;
+		long xBuffer, yBuffer, mask, nBits, swappedBits;
 		nBits=n<<log2BitsPerInt;
 		i<<=log2BitsPerInt;
-		iCell=i>>>6;
-		iOffset=i&Utils.LAST_6_BITS;
+		iCell=(int)( i>>>6 );
+		iOffset=(int)( i&Utils.LAST_6_BITS_LONG );
 		j<<=log2BitsPerInt;
-		jCell=j>>>6;
-		jOffset=j&Utils.LAST_6_BITS;
+		jCell=(int)( j>>>6 );
+		jOffset=(int)( j&Utils.LAST_6_BITS );
 		if (jOffset>iOffset) {
 			xCell=jCell;
 			xOffset=jOffset;
 			yCell=iCell;
 			yOffset=iOffset;
 			diff=jOffset-iOffset;
-			lastXCell=(j+nBits)>>6;
+			lastXCell=(int)( (j+nBits)>>6 );
 		}
 		else {
 			xCell=iCell;
@@ -475,7 +465,7 @@ public class IntArray {
 			yCell=jCell;
 			yOffset=jOffset;
 			diff=iOffset-jOffset;
-			lastXCell=(i+nBits)>>6;
+			lastXCell=(int)( (i+nBits)>>6 );
 		}
 		sixtyFourMinusDiff=64-diff;
 		sixtyFourMinusXOffset=64-xOffset;
@@ -485,13 +475,13 @@ public class IntArray {
 		// First $xCell$
 		if (xOffset!=0) {
 			if (xCell==lastXCell) {
-				mask=Utils.shiftOnesRight[xOffset]&Utils.shiftOnesLeft[sixtyFourMinusXOffset-nBits];
+				mask=Utils.shiftOnesRight[xOffset]&Utils.shiftOnesLeft[sixtyFourMinusXOffset-(int)nBits];
 				xBuffer=array[xCell]&mask;
-				mask=Utils.shiftOnesLeft[sixtyFourMinusXOffset]|Utils.shiftOnesRight[xOffset+nBits];
+				mask=Utils.shiftOnesLeft[sixtyFourMinusXOffset]|Utils.shiftOnesRight[xOffset+(int)nBits];
 				array[xCell]&=mask;
-				mask=Utils.shiftOnesRight[yOffset]&Utils.shiftOnesLeft[sixtyFourMinusYOffset-nBits];
+				mask=Utils.shiftOnesRight[yOffset]&Utils.shiftOnesLeft[sixtyFourMinusYOffset-(int)nBits];
 				yBuffer=array[yCell]&mask;
-				mask=Utils.shiftOnesLeft[sixtyFourMinusYOffset]|Utils.shiftOnesRight[yOffset+nBits];
+				mask=Utils.shiftOnesLeft[sixtyFourMinusYOffset]|Utils.shiftOnesRight[yOffset+(int)nBits];
 				array[yCell]&=mask;
 				array[yCell]|=xBuffer<<diff;
 				array[xCell]|=yBuffer>>>diff;
@@ -538,7 +528,7 @@ public class IntArray {
 		}
 
 		// Last $xCell$
-		k=nBits-swappedBits;
+		k=(int)( nBits-swappedBits );
 		if (k==0) return;
 		sixtyFourMinusK=64-k;
 		xBuffer=array[xCell]&Utils.shiftOnesLeft[sixtyFourMinusK];
@@ -580,13 +570,13 @@ public class IntArray {
 	/**
 	 * Implements $setElementAt(i+1,getElementAt(i))$. Used by $insertionSort$.
 	 */
-	public final void copyToRight(int i) {
+	public final void copyToRight(long i) {
 		final int cell;
 		int nextCell, offset, sixtyFourMinusBitsPerIntMinusOffset;
 		long value;
 		i<<=log2BitsPerInt;
-		cell=i>>>6;
-		offset=i&Utils.LAST_6_BITS;
+		cell=(int)( i>>>6 );
+		offset=(int)( i&Utils.LAST_6_BITS_LONG );
 
 		if (offset==sixtyFourMinusBitsPerInt) {
 			value=array[cell]&oneSelectors[0];
@@ -606,17 +596,18 @@ public class IntArray {
 
 
 	/**
-	 * Basic linear search with limited bit parallelism.
-	 * Should be adapted to work on a given interval.
+	 * Basic linear search with limited bit parallelism
+	 *
+	 * @todo Should be adapted to work on a given interval.
 	 *
 	 * @return -1 if $value$ does not occur in $array$; otherwise, the first position at
 	 * which $value$ occurs.
 	 */
-	public final int linearSearch(int value) {
+	public final long linearSearch(long value) {
 		int i, cell, offset, zeros, top;
 		long longValue, probe, result;
 
-		// Building xor mask
+		// Building XOR mask
 		longValue=value&oneSelectors[0];
 		probe=0;
 		for (i=0; i<64; i+=bitsPerInt) {
@@ -628,7 +619,7 @@ public class IntArray {
 		while (cell<lastCell) {
 			result=array[cell]^probe;
 			for (i=0; i<=sixtyFourMinusBitsPerInt; i+=bitsPerInt) {
-				if ((result&oneSelectors[sixtyFourMinusBitsPerInt-i])==0) return ((cell<<6)+i)>>>log2BitsPerInt;
+				if ((result&oneSelectors[sixtyFourMinusBitsPerInt-i])==0) return ((((long)cell)<<6)+i)>>>log2BitsPerInt;
 			}
 			cell++;
 		}
@@ -636,7 +627,7 @@ public class IntArray {
 		result=array[cell]^probe;
 		top=lastOffset-bitsPerInt;
 		for (i=0; i<=top; i+=bitsPerInt) {
-			if ((result&oneSelectors[sixtyFourMinusBitsPerInt-i])==0) return ((cell<<6)+i)>>>log2BitsPerInt;
+			if ((result&oneSelectors[sixtyFourMinusBitsPerInt-i])==0) return ((((long)cell)<<6)+i)>>>log2BitsPerInt;
 		}
 		return -1;
 	}
@@ -645,11 +636,11 @@ public class IntArray {
 	/**
 	 * Basic binary search with no bit parallelism
 	 *
-	 * @return -1 if $value$ does not occur in $array[first,last]$; otherwise, the first
+	 * @return -1 if $value$ does not occur in $array[first..last]$; otherwise, the first
 	 * position at which $value$ occurs.
 	 */
-	public final int binarySearch(int value, int first, int last) {
-		int mid, midValue;
+	public final long binarySearch(long value, long first, long last) {
+		long mid, midValue;
 	  	while (last>=first) {
 			mid=(last+first)>>1;
 			midValue=getElementAt(mid);
@@ -662,20 +653,20 @@ public class IntArray {
 
 
 	/**
-	 * Longest common prefix between suffix $v[x,]$ and suffix $v[y,]$.
+	 * Longest common prefix between suffix $v[x..]$ and suffix $v[y..]$.
 	 *
 	 * @param order TRUE=the most significant bit of the output is set to 1 if
-	 * $v[x,]>v[y,]$ in the lexicographic order, to 0 if $v[x,]<v[y,]$; the length of the
-	 * LCP is encoded in the remaining bits.
+	 * $v[x..]>v[y..]$ in the lexicographic order, to 0 if $v[x..]<v[y..]$; the length of
+	 * the LCP is encoded in the remaining bits.
 	 */
-	public final int lcp(int x, int y, boolean order) {
+	public final long lcp(long x, long y, boolean order) {
 		final boolean xSmallerThanY = x<y;
 		x<<=log2BitsPerInt;
-		final int xCell=x>>>6;
-		final int xOffset=x&Utils.LAST_6_BITS;
+		final int xCell = (int)( x>>>6 );
+		final int xOffset = (int)( x&Utils.LAST_6_BITS );
 		y<<=log2BitsPerInt;
-		final int yCell=y>>>6;
-		final int yOffset=y&Utils.LAST_6_BITS;
+		final int yCell = (int)( y>>>6 );
+		final int yOffset = (int)( y&Utils.LAST_6_BITS );
 		long xBuffer, yBuffer;
 		if (xOffset==0) xBuffer=array[xCell];
 		else {
@@ -692,21 +683,21 @@ public class IntArray {
 
 
 	/**
-	 * Longest common prefix between suffix $v[x,]$ and suffix $v[y,]$ starting from
+	 * Longest common prefix between suffix $v[x..]$ and suffix $v[y..]$ starting from
 	 * pre-loaded, 63-bit buffers.
 	 *
 	 * @param order TRUE=the most significant bit of the output is set to 1 if
-	 * $v[x,]>v[y,]$ in the lexicographic order, to 0 if $v[x,]<v[y,]$; the length of the
-	 * LCP is encoded in the remaining bits;
-	 * @param bufferX $0 \cdot v[x,x+63)$ ($v$ is assumed to be padded with an infinite
+	 * $v[x..]>v[y..]$ in the lexicographic order, to 0 if $v[x..]<v[y..]$; the length of
+	 * the LCP is encoded in the remaining bits;
+	 * @param bufferX $0 \cdot v[x..x+63)$ ($v$ is assumed to be padded with an infinite
 	 * number of ones);
-	 * @param bufferY $0 \cdot v[y,y+63)$ ($v$ is assumed to be padded with an infinite
+	 * @param bufferY $0 \cdot v[y..y+63)$ ($v$ is assumed to be padded with an infinite
 	 * number of ones).
 	 */
-	public final int lcp63(int x, int y, boolean order, long bufferX, long bufferY) {
+	public final long lcp63(long x, long y, boolean order, long bufferX, long bufferY) {
 		final boolean xSmallerThanY = x<y;
 		x<<=log2BitsPerInt; y<<=log2BitsPerInt;
-		return lcp(x>>>6,x&Utils.LAST_6_BITS,y>>>6,y&Utils.LAST_6_BITS,xSmallerThanY,order,bufferX,bufferY,true);
+		return lcp((int)(x>>>6),(int)(x&Utils.LAST_6_BITS_LONG),(int)(y>>>6),(int)(y&Utils.LAST_6_BITS_LONG),xSmallerThanY,order,bufferX,bufferY,true);
 	}
 
 
@@ -722,11 +713,13 @@ public class IntArray {
 	 * @param sixtyThreeBitBuffers TRUE=$bufferX=0 \cdot v[x..x+63)$,
 	 * $bufferY=0 \cdot v[y..y+63)$ ($v$ is assumed to be padded with an infinite number
 	 * of zeros); FALSE=buffers contain 64 bits.
+	 * @return the number of common \emph{bits} between $v[x..]$ and $v[y..]$.
 	 */
-	private final int lcp(int xCell, int xOffset, int yCell, int yOffset, boolean xSmallerThanY, boolean order, long bufferX, long bufferY, boolean sixtyThreeBitBuffers) {
+	private final long lcp(int xCell, int xOffset, int yCell, int yOffset, boolean xSmallerThanY, boolean order, long bufferX, long bufferY, boolean sixtyThreeBitBuffers) {
 		boolean xLexGreaterThanY = xSmallerThanY;
-		int tmp, lcpBits, arrayLength, bitsToCompare, leadingZeros;
+		int tmp, bitsToCompare, leadingZeros;
 		long xBuffer=bufferX, yBuffer=bufferY;
+		long lcpBits;
 
 		// First iteration: buffers could contain 63 bits.
 		lcpBits=0;
@@ -750,14 +743,14 @@ public class IntArray {
 				lcpBits=leadingZeros;
 				xLexGreaterThanY=(yBuffer&Utils.oneSelectors1[64-leadingZeros-2])==0x0L?true:false;
 				lcpBits>>>=log2BitsPerInt;
-				if (order&&xLexGreaterThanY) lcpBits|=Utils.MSB_INT_ONE;
+				if (order&&xLexGreaterThanY) lcpBits|=Utils.MSB_LONG_ONE;
 				return lcpBits;
 			}
 			else {
 				lcpBits=bitsToCompare;
 				if (bitsToCompare<63) {
 					lcpBits>>>=log2BitsPerInt;
-					if (order&&xLexGreaterThanY) lcpBits|=Utils.MSB_INT_ONE;
+					if (order&&xLexGreaterThanY) lcpBits|=Utils.MSB_LONG_ONE;
 					return lcpBits;
 				}
 			}
@@ -769,7 +762,7 @@ public class IntArray {
 			else { yCell++; yOffset--; }
 			if (xCell>lastCell || (xCell==lastCell&&xOffset>=lastOffset) || yCell>lastCell || (yCell==lastCell&&yOffset>=lastOffset)) {
 				lcpBits>>>=log2BitsPerInt;
-				if (order&&xLexGreaterThanY) lcpBits|=Utils.MSB_INT_ONE;
+				if (order&&xLexGreaterThanY) lcpBits|=Utils.MSB_LONG_ONE;
 				return lcpBits;
 			}
 			if (xOffset==0) xBuffer=array[xCell];
@@ -827,7 +820,7 @@ public class IntArray {
 			}
 		}
 		lcpBits>>>=log2BitsPerInt;
-		if (order&&xLexGreaterThanY) lcpBits|=Utils.MSB_INT_ONE;
+		if (order&&xLexGreaterThanY) lcpBits|=Utils.MSB_LONG_ONE;
 		return lcpBits;
 	}
 
@@ -837,8 +830,8 @@ public class IntArray {
 	 * This procedure is sequential and bit-parallel, and it sorts in place: no additional
 	 * space is used.
 	 */
-	public final void heapSort(int first, int n) {
-		int i;
+	public final void heapSort(long first, long n) {
+		long i;
 		for (i=(n>>1)-1; i>=0; i--) heapify(first,n,i);
 		for (i=n-1; i>0; i--) {
 			swap(first+i,first);
@@ -849,10 +842,10 @@ public class IntArray {
 
 
 	/**
-	 * Heapifies the relative position $position$ in the heap $array[first,first+n-1]$.
+	 * Heapifies the relative position $position$ in the heap $array[first..first+n-1]$.
 	 */
-	private final void heapify(int first, int n, int position) {
-		int i, iValue, child, childValue, largest, largestValue, firstPlusI, firstPlusChild, firstPlusLargest;
+	private final void heapify(long first, long n, long position) {
+		long i, firstPlusI, iValue, child, firstPlusChild, childValue, largest, firstPlusLargest, largestValue;
 
 		i=position;
 		while ((i<<1)+1<n) {
@@ -883,3 +876,21 @@ public class IntArray {
 
 
 }
+
+
+
+
+// ----------------------------------- Appendix ------------------------------------------
+/**
+ * Pushes $value$ at the pointer, and advances the pointer.
+ * The old value is overwritten.
+ */
+/*public final void pushAtPointer(int value) {
+	int tmp;
+	setElementAt(pointerCell,pointerOffset,value);
+	if (pointerOffset==sixtyFourMinusBitsPerInt) {
+		pointerCell++;
+		pointerOffset=0;
+	}
+	else pointerOffset+=bitsPerInt;
+}*/

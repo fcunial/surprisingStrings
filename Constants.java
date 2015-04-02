@@ -28,7 +28,7 @@ public class Constants {
 	 * by $string$). Inversely proportional to the number of blocks and to construction
 	 * time. Does not affect the time of $run$ if substrings have just one interval.
 	 */
-	public int MAX_MEMORY = 2000000;
+	public long MAX_MEMORY = 2000000;
 
 
 
@@ -38,12 +38,12 @@ public class Constants {
 	 * Number of longs allocated to each region of the stack (a power of two).
 	 * Balances between space and time.
 	 */
-	public int LONGS_PER_REGION = 8;
+	public int LONGS_PER_REGION = 2;
 
 	/**
 	 * Number of work-stealing attempts performed by each thread before terminating.
 	 */
-	public int N_STEALING_ATTEMPTS = 8;
+	public int N_STEALING_ATTEMPTS = 10;
 
 	/**
 	 * Only strings of length at most $MAX_STRING_LENGTH_FOR_SPLIT$ are stolen from
@@ -52,7 +52,7 @@ public class Constants {
 	 * of the donor stack, but it has the advantage of increasing the granularity of the
 	 * stealing.
 	 */
-	public int MAX_STRING_LENGTH_FOR_SPLIT = 4;
+	public int MAX_STRING_LENGTH_FOR_SPLIT = 3;
 
 	/**
 	 * The stack of the donor thread is split iff it contains at least

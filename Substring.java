@@ -64,6 +64,11 @@ public class Substring {
 	 */
 	protected boolean hasBeenExtended;
 
+	/**
+	 * TRUE iff $v$ has been stolen by a $SubstringIteratorThread$
+	 */
+	protected boolean hasBeenStolen;
+
 
 	protected Substring(int alphabetLength, int log2alphabetLength, int textLength, int log2textLength) {
 		this.alphabetLength=alphabetLength;
@@ -137,7 +142,6 @@ public class Substring {
 		j=1;
 		for (i=0; i<alphabetLength-1; i++) {
 			if (C[i+1]-C[i]>0) {
-//System.out.println("Character "+i+" occurs");
 				w=getInstance();
 				w.bwtIntervals[0][0]=C[i];
 				w.bwtIntervals[0][1]=C[i+1]-1;
@@ -147,7 +151,6 @@ public class Substring {
 			}
 		}
 		if (textLength+1-C[alphabetLength-1]>0) {
-//System.out.println("Character "+(alphabetLength-1)+" occurs");
 			w=getInstance();
 			w.bwtIntervals[0][0]=C[alphabetLength-1];
 			w.bwtIntervals[0][1]=textLength;
@@ -248,6 +251,7 @@ public class Substring {
 		log2address=stackPointers[0]==0?MAX_BITS_PER_POINTER:Utils.log2(stackPointers[0]);
 		stack.push(stackPointers[1],log2address);
 		stack.push(hasBeenExtended?1:0,1);
+		stack.push(hasBeenStolen?1:0,1);
 		int i;
 		for (i=2; i<nPointers; i++) stack.push(stackPointers[i],log2address);
 		for (i=0; i<nIntervals; i++) {
@@ -264,7 +268,7 @@ public class Substring {
 	 * instance of this class.
 	 */
 	protected int serializedSize() {
-		return 1+
+		return 1+1+
 			   (nPointers-1)*MAX_BITS_PER_POINTER+
 			   (nIntervals<<1)*log2textLength+
 			   MAX_BITS_PER_LENGTH+
@@ -285,6 +289,7 @@ public class Substring {
 		log2address=stackPointers[0]==0?MAX_BITS_PER_POINTER:Utils.log2(stackPointers[0]);
 		stackPointers[1]=stack.read(log2address);
 		hasBeenExtended=stack.read(1)==1?true:false;
+		hasBeenStolen=stack.read(1)==1?true:false;
 		int i;
 		for (i=2; i<nPointers; i++) stackPointers[i]=stack.read(log2address);
 		for (i=0; i<nIntervals; i++) {
@@ -297,8 +302,8 @@ public class Substring {
 
 
 	/**
-	 * Same as $read$, but if $hasBeenExtended=true$ the procedure halts without reading
-	 * the whole serialized substring.
+	 * Same as $read$, but if $hasBeenExtended=true$ or $hasBeenStolen=true$ the procedure
+	 * halts without reading the whole serialized substring.
 	 */
 	protected void readFast(Stream stack) {
 		stackPointers[0]=stack.getPosition();
@@ -306,6 +311,8 @@ public class Substring {
 		stackPointers[1]=stack.read(log2address);
 		hasBeenExtended=stack.read(1)==1?true:false;
 		if (hasBeenExtended) return;
+		hasBeenStolen=stack.read(1)==1?true:false;
+		if (hasBeenStolen) return;
 		int i;
 		for (i=2; i<nPointers; i++) stackPointers[i]=stack.read(log2address);
 		for (i=0; i<nIntervals; i++) {
@@ -333,6 +340,7 @@ public class Substring {
 		}
 		for (i=2; i<nPointers; i++) stack.pop(log2address);
 		stack.pop(1);
+		stack.pop(1);
 		stack.pop(log2address);
 		stack.setPosition(stackPointers[1]);
 	}
@@ -346,7 +354,7 @@ public class Substring {
 	 */
 	protected int skip(Stream stack) {
 		stack.setPosition(stackPointers[0]+log2address+
-										   1+
+										   1+1+
 										   (nPointers-2)*log2address+
 										   (nIntervals<<1)*log2textLength+
 										   log2textLength+
@@ -363,6 +371,18 @@ public class Substring {
 	protected final void markAsExtended(Stream stack) {
 		long backupPointer = stack.getPosition();
 		stack.setBit(stackPointers[0]+log2address);
+		stack.setPosition(backupPointer);
+	}
+
+
+	/**
+	 * Sets $hasBeenStolen=true$ in the serialized representation of $v$ in $stack$,
+	 * but not in this object. Then, the pointer of $stack$ is restored to its initial
+	 * state.
+	 */
+	protected final void markAsStolen(Stream stack) {
+		long backupPointer = stack.getPosition();
+		stack.setBit(stackPointers[0]+log2address+1);
 		stack.setPosition(backupPointer);
 	}
 

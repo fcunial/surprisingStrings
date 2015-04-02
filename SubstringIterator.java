@@ -133,7 +133,7 @@ public class SubstringIterator {
 		// Reading the top of $stack$
 		out[0]=0; out[1]=0; out[2]=0;
 		w.readFast(stack);
-		while (w.hasBeenExtended) {
+		while (w.hasBeenExtended || w.hasBeenStolen) {
 			previous=w.stackPointers[1];
 			w.pop(stack);
 			stack.setPosition(previous);
@@ -485,8 +485,8 @@ public class SubstringIterator {
 					donorStack.setPosition(0);
 					while (copied<toBeCopied) {
 						w.read(donorStack);
-						if (!w.hasBeenExtended) copied++;
-						copy(w);
+						if (!w.hasBeenExtended && !w.hasBeenStolen) copied++;
+						if (!w.hasBeenStolen) copy(w);
 					}
 					stack.setPosition(newStack_previousSubstringAddress);
 					donorStack.setPosition(backupPointer);
@@ -499,13 +499,8 @@ public class SubstringIterator {
 		/**
 		 * Extended strings in the donor stack are copied to the new receiver stack.
 		 * Non-extended strings in the donor stack are copied to the new receiver stack
-		 * and marked as extended in the donor stack, so that they will be automatically
-		 * popped out and discarded by $extendLeft$.
-		 *
- 		 * Problem: since a stolen nonextended string is marked as extended in the donor
- 		 * stack, it will be copied to all other receivers that steal from the same
- 		 * donor. We should introduce another bit in $Substring$ to signal that a string
- 		 * has been stolen.
+		 * and marked as stolen in the donor stack, so they will be automatically popped
+		 * out and discarded by $extendLeft$.
 		 */
 		private final void copy(Substring w) {
 			if (w.hasBeenExtended) {
@@ -513,7 +508,7 @@ public class SubstringIterator {
 				translatorFrom.push(w.stackPointers[0],64);
 			}
 			else {
-				w.markAsExtended(donorStack);
+				w.markAsStolen(donorStack);
 				donor.nStringsNotExtended--;
 				donor.nShortStringsNotExtended--;
 			}

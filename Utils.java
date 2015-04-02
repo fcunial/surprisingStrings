@@ -14,6 +14,9 @@ public class Utils {
 	private static long INCREASING_LONG = 0L;
 	private static long RANDOM = 0L;
 
+	public static final long LAST_6_BITS_LONG = 0x3FL;
+	public static final long MSB_LONG_ONE = 0x8000000000000000L;
+
 	public static final int LAST_6_BITS = 0x3F;
 	public static final int MSB_INT_ONE = 0x80000000;
 	public static final int MSB_INT_ZERO = 0x7FFFFFFF;
