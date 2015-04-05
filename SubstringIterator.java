@@ -17,7 +17,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  * available during construction), so the total size of all wavelet trees is approximately
  * $|s|*H_k(s)+blockSize*alphabetLength^k$ bits for any given $k$, where $H_k(s)$ is the
  * $k$-th order entropy of $s$ \cite{karkkainen2011fixed}. This can be significantly
- * smaller than $|s|*\log_2(alphabetLength)$ if $s$ is compressible.
+ * smaller than $|s|*\log_2(alphabetLength)$ if $s$ is compressible. The number of blocks
+ * is assumed to be at most $Integer.MAX_VALUE$.
  *
  * Remark: In practice this fixed-block approach should be approximately as fast as a
  * single Huffman-shaped wavelet tree if $s$ is incompressible, and possibly faster if $s$
@@ -36,17 +37,17 @@ public class SubstringIterator {
 	 * BWT index
 	 */
 	private HuffmanWaveletTree[] waveletTrees;
-	private IntArray[] blockCounts;  // Number of occurrences of each character before the beginning of each block, excluding $\$$.
+	private IntArray[] blockCounts;  // Number of occurrences of each character before the beginning of each block, excluding $#$.
 	private IntArray blockStarts;  // Starting position of each block
 	private Rank9 blockBoundaries;  // Dense representation of a sparse bitvector, for speed.
-	private long[] C;  // The $C$ array in backward search (excludes $\$$).
+	private long[] C;  // The $C$ array in backward search (excludes $#$).
 
 	/**
-	 * $dollar[0]$: position of the dollar character in the BWT;
-	 * $dollar[1]$: BWT block containing the dollar character;
-	 * $dollar[2]$: position of the dollar character inside the BWT block $dollar[1]$.
+	 * $sharp[0]$: position of the sharp character in the BWT;
+	 * $sharp[1]$: BWT block containing the sharp character;
+	 * $sharp[2]$: position of the sharp character inside the BWT block $sharp[1]$.
 	 */
-	private long[] dollar;
+	private long[] sharp;
 
 
 	/**
@@ -54,28 +55,32 @@ public class SubstringIterator {
 	 */
 	public SubstringIterator(IntArray string, int[] alphabet, int alphabetLength, Substring substringClass, Constants constants) {
 		this.constants=constants;
-		final int stringLength = string.length();
+		final long stringLength = string.length();
 		final int log2stringLength = Utils.log2(stringLength);
 		final int log2stringLengthPlusOne = Utils.log2(stringLength+1);
 		this.alphabetLength=alphabetLength;
 		log2alphabetLength=Utils.log2(alphabetLength);
-		int blockSize = Suffixes.blockwiseBWT_getBlockSize(stringLength,log2stringLength,log2alphabetLength,constants);
-		nBlocks=Utils.divideAndRoundUp(stringLength,blockSize);  // This value is just an upper bound: $Suffixes.blockwiseBWT$ will set the effective number of blocks.
-		if (nBlocks<4) nBlocks=4;
+		long blockSize = Suffixes.blockwiseBWT_getBlockSize(stringLength,log2stringLength,log2alphabetLength,constants);
+blockSize=2;
+		long nb = Utils.divideAndRoundUp(stringLength,blockSize);  // This value is just an upper bound: $Suffixes.blockwiseBWT$ will set the effective number of blocks.
+		if (nb<4) nBlocks=4;
+		else if (nb>Integer.MAX_VALUE) nBlocks=Integer.MAX_VALUE;
+		else nBlocks=(int)nb;
 		waveletTrees = new HuffmanWaveletTree[nBlocks];
 		blockStarts = new IntArray(nBlocks,log2stringLengthPlusOne,false);
-		dollar = new long[3];
+		sharp = new long[3];
 		IntArray[] localBlockCounts = new IntArray[nBlocks];
 		IntArray bitVector = new IntArray(stringLength+1,1,true);
-		Suffixes.blockwiseBWT(string,alphabet,alphabetLength,log2alphabetLength,blockSize,null,waveletTrees,blockStarts,bitVector,localBlockCounts,dollar,constants);
+		Suffixes.blockwiseBWT(string,alphabet,alphabetLength,log2alphabetLength,blockSize,null,waveletTrees,blockStarts,bitVector,localBlockCounts,sharp,constants);
 		blockBoundaries = new Rank9(bitVector);
 		bitVector.deallocate(); bitVector=null;
-		nBlocks=blockStarts.length();  // Setting the effective number of blocks
+		nBlocks=(int)( blockStarts.length() );  // Setting the effective number of blocks
 		SUBSTRING_CLASS=substringClass;
 
 		// Building $blockCounts$ and $C$
-		int i, j, max;
-		int[] characterCounts = new int[alphabetLength];
+		int i, j;
+		long max;
+		long[] characterCounts = new long[alphabetLength];
 		blockCounts = new IntArray[nBlocks];
 		blockCounts[0] = new IntArray(alphabetLength,1,true);
 		for (i=1; i<nBlocks; i++) {
@@ -85,7 +90,7 @@ public class SubstringIterator {
 				if (characterCounts[j]>max) max=characterCounts[j];
 			}
 			blockCounts[i] = new IntArray(alphabetLength,Utils.bitsToEncode(max));
-			for (j=0; j<alphabetLength; j++) blockCounts[i].setElementAt(j,(int)characterCounts[j]);
+			for (j=0; j<alphabetLength; j++) blockCounts[i].setElementAt(j,characterCounts[j]);
 		}
 		for (j=0; j<alphabetLength; j++) characterCounts[j]+=localBlockCounts[nBlocks-1].getElementAt(j);
 		C = new long[alphabetLength];
@@ -123,7 +128,7 @@ public class SubstringIterator {
 	 * \emph{non-extended} strings $v$ in $stack$, induced by this call to $extendLeft$;
 	 * cell 2: as in cell 1, but only for strings with $|v| \leq maxStringLengthToReport$.
 	 */
-	private final void extendLeft(Stream stack, Substring w, Substring[] leftExtensions, Position[] positions, long[][] multirankStack, long[][] multirankOutput, long[] multirankOnes, int maxStringLengthToReport, int[] out) {
+	private final void extendLeft(Stream stack, Substring w, Substring[] leftExtensions, Position[] positions, long[][] multirankStack, long[][] multirankOutput, long[] multirankOnes, int maxStringLengthToReport, long[] out) {
 		final boolean isShort;
 		boolean pushed;
 		int i, j, c, p, windowFirst, windowSize, block, previousBlock, nPositions;
@@ -170,10 +175,10 @@ public class SubstringIterator {
 				for (i=0; i<multirankOutput.length; i++) {
 					for (j=0; j<multirankOutput[i].length; j++) multirankOutput[i][j]=0;
 				}
-				handleLeftExtensionsByDollar(positions,windowFirst,windowSize,previousBlock,leftExtensions,multirankStack);
+				handleLeftExtensionsBySharp(positions,windowFirst,windowSize,previousBlock,leftExtensions,multirankStack);
 				if (waveletTrees[previousBlock]!=null) {
 					// There can be exactly one block with null elements in $waveletTrees$:
-					// it corresponds to a splitter at the position of $\$$ in the BWT,
+					// it corresponds to a splitter at the position of $#$ in the BWT,
 					// preceded by another splitter.
 					waveletTrees[previousBlock].multirank(alphabetLength,windowSize,multirankStack,multirankOutput,multirankOnes);
 				}
@@ -185,7 +190,7 @@ public class SubstringIterator {
 			}
 		}
 		// Last block
-		handleLeftExtensionsByDollar(positions,windowFirst,windowSize,previousBlock,leftExtensions,multirankStack);
+		handleLeftExtensionsBySharp(positions,windowFirst,windowSize,previousBlock,leftExtensions,multirankStack);
 		for (i=0; i<multirankOutput.length; i++) {
 			for (j=0; j<multirankOutput[i].length; j++) multirankOutput[i][j]=0;
 		}
@@ -235,31 +240,31 @@ public class SubstringIterator {
 
 
 	/**
-	 * Handles the left-extension by $\$$ in $extendLeft$.
+	 * Handles the left-extension by $#$ in $extendLeft$.
 	 */
-	private final void handleLeftExtensionsByDollar(Position[] positions, int firstPosition, int nPositions, int block, Substring[] leftExtensions, long[][] multirankStack) {
+	private final void handleLeftExtensionsBySharp(Position[] positions, int firstPosition, int nPositions, int block, Substring[] leftExtensions, long[][] multirankStack) {
 		int i;
-		if (block>dollar[1]) {
+		if (block>sharp[1]) {
 			for (i=1; i<=nPositions; i++) {
 				if (positions[firstPosition+i-1].column==0) leftExtensions[0].bwtIntervals[positions[firstPosition+i-1].row][positions[firstPosition+i-1].column]=1;
 				else leftExtensions[0].bwtIntervals[positions[firstPosition+i-1].row][positions[firstPosition+i-1].column]=0;
 			}
 		}
-		else if (block<dollar[1]) {
+		else if (block<sharp[1]) {
 			for (i=1; i<=nPositions; i++) {
 				if (positions[firstPosition+i-1].column==0) leftExtensions[0].bwtIntervals[positions[firstPosition+i-1].row][positions[firstPosition+i-1].column]=0;
 				else leftExtensions[0].bwtIntervals[positions[firstPosition+i-1].row][positions[firstPosition+i-1].column]=-1;
 			}
 		}
 		else {
-			for (i=1; i<=nPositions && positions[firstPosition+i-1].position<=dollar[0]; i++) {
+			for (i=1; i<=nPositions && positions[firstPosition+i-1].position<=sharp[0]; i++) {
 				if (positions[firstPosition+i-1].column==0) leftExtensions[0].bwtIntervals[positions[firstPosition+i-1].row][positions[firstPosition+i-1].column]=0;
 				else leftExtensions[0].bwtIntervals[positions[firstPosition+i-1].row][positions[firstPosition+i-1].column]=-1;
 			}
 			for (; i<=nPositions; i++) {
 				if (positions[firstPosition+i-1].column==0) leftExtensions[0].bwtIntervals[positions[firstPosition+i-1].row][positions[firstPosition+i-1].column]=1;
 				else leftExtensions[0].bwtIntervals[positions[firstPosition+i-1].row][positions[firstPosition+i-1].column]=0;
-				multirankStack[0][i]--;  // This wavelet tree does not contain the position of $\$$
+				multirankStack[0][i]--;  // This wavelet tree does not contain the position of $#$
 			}
 		}
 	}
@@ -277,7 +282,7 @@ public class SubstringIterator {
 		for (i=0; i<constants.N_THREADS; i++) threads[i] = new SubstringIteratorThread(threads,i,donorGenerator,latch);
 
 		// Initializing the stack of $threads[0]$ with $\epsilon$, the distinct characters
-		// in the text, and $\$$. The distinct characters in the text might be a proper
+		// in the text, and $#$. The distinct characters in the text might be a proper
 		// subset of the full alphabet. $\epsilon$ is pushed in order to detect when the
 		// stack becomes empty by issuing $stack.getPosition()>0$ (we cannot store
 		// negative numbers in the stack). Thus, a stack always contains at least one
@@ -289,7 +294,7 @@ public class SubstringIterator {
 		epsilon.deallocate(); epsilon=null;
 		Substring[] lengthOneSubstrings = new Substring[alphabetLength+1];
 		nCharacters=SUBSTRING_CLASS.getLengthOneSubstrings(C,lengthOneSubstrings);
-		lengthOneSubstrings[0].visited(threads[0].stack);  // $\$$, not pushed on the stack but visited.
+		lengthOneSubstrings[0].visited(threads[0].stack);  // $#$, not pushed on the stack but visited.
 		previous=0L;
 		for (i=1; i<nCharacters; i++) {  // Other characters
 			lengthOneSubstrings[i].visited(threads[0].stack);
@@ -365,9 +370,9 @@ public class SubstringIterator {
 		 * Thread variables
 		 */
 		protected Stream stack;
-		protected int nStrings;  // Total number of strings in $stack$
-		protected int nStringsNotExtended;  // Number of strings in $stack$ that have not been extended
-		protected int nShortStringsNotExtended;  // Number of strings in $stack$ that have not been extended, and that have length $<=MAX_STRING_LENGTH_FOR_SPLIT$.
+		protected long nStrings;  // Total number of strings in $stack$
+		protected long nStringsNotExtended;  // Number of strings in $stack$ that have not been extended
+		protected long nShortStringsNotExtended;  // Number of strings in $stack$ that have not been extended, and that have length $<=MAX_STRING_LENGTH_FOR_SPLIT$.
 		private boolean isAlive;  // Flags a dead thread
 		private SubstringIteratorThread[] threads;  // Pointers to all threads
 		private final int nThreads;  // Number of threads in $threads$
@@ -423,7 +428,7 @@ public class SubstringIterator {
 			long[][] multirankStack = new long[alphabetLength-1][1+maxPositions];
 			long[][] multirankOutput = new long[alphabetLength][maxPositions];
 			long[] multirankOnes = new long[maxPositions];
-			int[] extendLeftOutput = new int[3];
+			long[] extendLeftOutput = new long[3];
 			Substring w = SUBSTRING_CLASS.getInstance();
 
 			isAlive=true;

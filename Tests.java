@@ -124,7 +124,7 @@ public class Tests {
 		final int STRING_LENGTH = 100;
 		final int N_ITERATIONS = 100;
 		Constants constants = new Constants();
-		int i, j, k, c, dollarPosition;
+		int i, j, k, c, sharpPosition;
 		int[] alphabet = new int[] {0,1,2,3};
 		String stringString = new String();
 		String[] trueSubstringsArray, iteratorSubstringsArray;
@@ -150,8 +150,8 @@ public class Tests {
 			for (j=0; j<STRING_LENGTH; j++) {
 				for (k=j+1; k<=STRING_LENGTH; k++) trueSubstrings.add(stringString.substring(j,k));
 			}
-			for (k=1; k<=STRING_LENGTH; k++) trueSubstrings.add("$"+stringString.substring(0,k));
-			trueSubstrings.add("$");
+			for (k=1; k<=STRING_LENGTH; k++) trueSubstrings.add("#"+stringString.substring(0,k));
+			trueSubstrings.add("#");
 			trueSubstringsArray = new String[trueSubstrings.size()];
 			trueSubstrings.toArray(trueSubstringsArray);
 			Arrays.sort(trueSubstringsArray);
@@ -160,7 +160,7 @@ public class Tests {
 
 			// Building BWT for reporting
 			IntArray bwt = new IntArray(STRING_LENGTH+1,2,true);
-			dollarPosition=Suffixes.blockwiseBWT(string,alphabet,4,2,2,bwt,null,null,null,null,null,constants);
+			sharpPosition=(int)(Suffixes.blockwiseBWT(string,alphabet,4,2,2,bwt,null,null,null,null,null,constants));
 //System.out.println("BWT: "); bwt.print(); System.out.println();
 
 /*			// Running $SubstringIterator$ with one thread
@@ -238,7 +238,7 @@ public class Tests {
 	private static class TestSubstring extends Substring {
 		private String text;
 
-		public TestSubstring(int alphabetLength, int log2alphabetLength, int textLength, int log2textLength, String text) {
+		public TestSubstring(int alphabetLength, int log2alphabetLength, long textLength, int log2textLength, String text) {
 			super(alphabetLength,log2alphabetLength,textLength,log2textLength);
 			this.text=text;
 		}
@@ -253,13 +253,13 @@ public class Tests {
 				System.err.println("text: "+text);
 				System.exit(1);
 			}
-			boolean startsWithDollar;
+			boolean startsWithSharp;
 			String str;
 			IntArray sequence = new IntArray((int)length,log2alphabetLength,false);
-			startsWithDollar=Substring.getSequence(this,stack,sequence);
-			if (startsWithDollar) str="$";
+			startsWithSharp=Substring.getSequence(this,stack,sequence);
+			if (startsWithSharp) str="#";
 			else str="";
-			for (int i=0; i<(startsWithDollar?length-1:length); i++) str+=""+sequence.getElementAt(i);
+			for (int i=0; i<(startsWithSharp?length-1:length); i++) str+=""+sequence.getElementAt(i);
 			synchronized(iteratorSubstrings) { iteratorSubstrings.add(str); }
 		}
 	}
@@ -518,7 +518,7 @@ public class Tests {
 			tree.multirank(fullAlphabet.length,N_POSITIONS,stack,output,ones);
 			for (p=0; p<N_POSITIONS; p++) {
 				for (c=0; c<fullAlphabet.length; c++) trueOutput[c][p]=0;
-				for (j=0; j<stack[0][1+p]; j++) trueOutput[string.getElementAt(j)][p]++;
+				for (j=0; j<stack[0][1+p]; j++) trueOutput[(int)(string.getElementAt(j))][p]++;
 			}
 			for (c=0; c<fullAlphabet.length; c++) {
 				for (p=0; p<N_POSITIONS; p++) {
@@ -543,12 +543,12 @@ public class Tests {
 		final int N_ITERATIONS = 100000;
 		final int BLOCK_SIZE = 2;
 		final int N_THREADS = 2;
-		int N_BLOCKS = Utils.divideAndRoundUp(STRING_LENGTH,BLOCK_SIZE);
+		int N_BLOCKS = (int)(Utils.divideAndRoundUp(STRING_LENGTH,BLOCK_SIZE));
 		if (N_BLOCKS<4) N_BLOCKS=4;
 		//System.err.println("N_BLOCKS="+N_BLOCKS);
-		int i, j, dollarPosition1, dollarPosition2, suffix;
+		int i, j, sharpPosition1, sharpPosition2, suffix;
 		int[] alphabet = new int[] {0,1,2,3};
-		long[] dollar;
+		long[] sharp;
 		IntArray string, bwt, suffixes, blockStarts, bitVector;
 		XorShiftStarRandom random = new XorShiftStarRandom();
 		Rank9 blockBoundaries;
@@ -564,20 +564,20 @@ public class Tests {
 			bwt = new IntArray(STRING_LENGTH+1,2,true);
 
 			// Checking $SortBWTBlockThread$
-			dollarPosition1=Suffixes.blockwiseBWT(string,alphabet,4,2,BLOCK_SIZE,bwt,null,null,null,null,null,constants);
+			sharpPosition1=(int)(Suffixes.blockwiseBWT(string,alphabet,4,2,BLOCK_SIZE,bwt,null,null,null,null,null,constants));
 			Suffixes.sort(suffixes,string,random,constants);
 			for (j=0; j<STRING_LENGTH; j++) {
-				suffix=suffixes.getElementAt(j);
+				suffix=(int)(suffixes.getElementAt(j));
 				if (suffix==0) {
-					if (dollarPosition1!=j+1) {
-						System.err.println("Error in dollar position="+dollarPosition1+" (computed|correct)");
-						printBWTandSuffixes(bwt,dollarPosition1,suffixes,string);
+					if (sharpPosition1!=j+1) {
+						System.err.println("Error in sharp position="+sharpPosition1+" (computed|correct)");
+						printBWTandSuffixes(bwt,sharpPosition1,suffixes,string);
 						return false;
 					}
 				}
 				else if (string.getElementAt(suffix-1)!=bwt.getElementAt(j+1)) {
 					System.err.println("Error in BWT characters: (computed|correct)");
-					printBWTandSuffixes(bwt,dollarPosition1,suffixes,string);
+					printBWTandSuffixes(bwt,sharpPosition1,suffixes,string);
 					return false;
 				}
 			}
@@ -586,13 +586,13 @@ public class Tests {
 			bitVector = new IntArray(STRING_LENGTH+1,1,true);
 			waveletTrees = new HuffmanWaveletTree[N_BLOCKS];
 			blockStarts = new IntArray(N_BLOCKS,Utils.log2(STRING_LENGTH),true);
-			dollar = new long[3];
+			sharp = new long[3];
 			localBlockCounts = new IntArray[N_BLOCKS];
-			dollarPosition2=Suffixes.blockwiseBWT(string,alphabet,4,2,BLOCK_SIZE,null,waveletTrees,blockStarts,bitVector,localBlockCounts,dollar,constants);
+			sharpPosition2=(int)(Suffixes.blockwiseBWT(string,alphabet,4,2,BLOCK_SIZE,null,waveletTrees,blockStarts,bitVector,localBlockCounts,sharp,constants));
 			blockBoundaries = new Rank9(bitVector);
 			boolean isOK = true;
 			for (int x=0; x<STRING_LENGTH+1; x++) {
-				if (x<dollarPosition2) {
+				if (x<sharpPosition2) {
 					int y = (int)blockBoundaries.rank(x+1)-1;
 					int z = waveletTrees[y].access(x-blockStarts.getElementAt(y));
 					if (z!=bwt.getElementAt(x)) {
@@ -601,9 +601,9 @@ public class Tests {
 						break;
 					}
 				}
-				else if (x>dollarPosition2) {
+				else if (x>sharpPosition2) {
 					int y = (int)blockBoundaries.rank(x+1)-1;
-					int z = waveletTrees[y].access((y==dollar[1]?x-1:x)-blockStarts.getElementAt(y));
+					int z = waveletTrees[y].access((y==sharp[1]?x-1:x)-blockStarts.getElementAt(y));
 					if (z!=bwt.getElementAt(x)) {
 						System.err.println("Error 2: wavelet tree BWT differs from real BWT");
 						isOK=false;
@@ -611,29 +611,29 @@ public class Tests {
 					}
 				}
 				else {
-					int y = (int)blockBoundaries.rank(dollarPosition2+1)-1;
-					if (dollarPosition1!=dollar[0] || y!=dollar[1] || dollarPosition1-blockStarts.getElementAt(y)!=dollar[2]) {
-						System.err.println("Error 3: dollar position in the wavelet tree BWT differs from the real dollar position");
-						System.err.println("dollar[0]="+dollar[0]+" dollar[1]="+dollar[1]+" dollar[2]="+dollar[2]);
+					int y = (int)blockBoundaries.rank(sharpPosition2+1)-1;
+					if (sharpPosition1!=sharp[0] || y!=sharp[1] || sharpPosition1-blockStarts.getElementAt(y)!=sharp[2]) {
+						System.err.println("Error 3: sharp position in the wavelet tree BWT differs from the real sharp position");
+						System.err.println("sharp[0]="+sharp[0]+" sharp[1]="+sharp[1]+" sharp[2]="+sharp[2]);
 						isOK=false;
 						break;
 					}
 				}
 			}
 			if (!isOK) {
-				System.out.println("Real BWT: (dollar="+dollarPosition1+")");
-				for (int l=0; l<STRING_LENGTH+1; l++) System.out.print(l==dollarPosition1?"$":bwt.getElementAt(l));
+				System.out.println("Real BWT: (sharp="+sharpPosition1+")");
+				for (int l=0; l<STRING_LENGTH+1; l++) System.out.print(l==sharpPosition1?"#":bwt.getElementAt(l));
 				System.out.println();
-				System.out.println("Wavelet tree: (dollar="+dollarPosition2+")");
+				System.out.println("Wavelet tree: (sharp="+sharpPosition2+")");
 				for (int l=0; l<STRING_LENGTH+1; l++) {
-					if (l==dollarPosition2) System.out.print("$");
-					else if (l<dollarPosition2) {
+					if (l==sharpPosition2) System.out.print("#");
+					else if (l<sharpPosition2) {
 						int b = (int)blockBoundaries.rank(l+1)-1;
 						System.out.print(waveletTrees[b].access(l-blockStarts.getElementAt(b)));
 					}
 					else {
 						int b = (int)blockBoundaries.rank(l+1)-1;
-						System.out.print(waveletTrees[b].access((b==dollar[1]?l-1:l)-blockStarts.getElementAt(b)));
+						System.out.print(waveletTrees[b].access((b==sharp[1]?l-1:l)-blockStarts.getElementAt(b)));
 					}
 				}
 				System.out.println();
@@ -682,10 +682,10 @@ public class Tests {
 				return false;
 			}
 			for (int x=0; x<blockStarts.length(); x++) {
-				int y=blockStarts.getElementAt(x);
+				int y=(int)(blockStarts.getElementAt(x));
 				int[] counts = new int[4];
 				while (y<bwt.length() && (int)blockBoundaries.rank(y+1)-1==x) {
-					if (y!=dollarPosition1) counts[bwt.getElementAt(y)]++;
+					if (y!=sharpPosition1) counts[(int)(bwt.getElementAt(y))]++;
 					y++;
 				}
 				for (y=0; y<4; y++) {
@@ -704,14 +704,14 @@ public class Tests {
 	}
 
 
-	private static final void printBWTandSuffixes(IntArray bwt, int dollarPosition, IntArray suffixes, IntArray string) {
+	private static final void printBWTandSuffixes(IntArray bwt, int sharpPosition, IntArray suffixes, IntArray string) {
 		int i, suffix;
 		String bwtString, correctString;
 		System.err.println("0: "+bwt.getElementAt(0)+" "+string.getElementAt(string.length()-1)+" "+(bwt.getElementAt(0)==string.getElementAt(string.length()-1)?"":"<<<"));
 		for (i=1; i<bwt.length(); i++) {
-			suffix=suffixes.getElementAt(i-1);
-			bwtString=i==dollarPosition?"$":bwt.getElementAt(i)+"";
-			correctString=suffix==0?"$":string.getElementAt(suffix-1)+"";
+			suffix=(int)(suffixes.getElementAt(i-1));
+			bwtString=i==sharpPosition?"#":bwt.getElementAt(i)+"";
+			correctString=suffix==0?"#":string.getElementAt(suffix-1)+"";
 			System.err.println(i+": "+bwtString+" "+correctString+" "+(bwtString.equalsIgnoreCase(correctString)?"":"<<<"));
 		}
 	}
@@ -818,7 +818,7 @@ public class Tests {
 									    "), but the algorithm thinks so.");
 					if (block>0) {
 						System.err.println("string["+splitters.getElementAt(block-1)+",]:");
-						for (h=splitters.getElementAt(block-1); h<STRING_LENGTH; h++) System.err.print(string.getElementAt(h));
+						for (h=(int)(splitters.getElementAt(block-1)); h<STRING_LENGTH; h++) System.err.print(string.getElementAt(h));
 						System.err.println();
 					}
 					System.err.println("string["+suffix+",]:");
@@ -826,7 +826,7 @@ public class Tests {
 					System.err.println();
 					if (block<N_SPLITTERS) {
 						System.err.println("string["+splitters.getElementAt(block)+",]:");
-						for (h=splitters.getElementAt(block); h<STRING_LENGTH; h++) System.err.print(string.getElementAt(h));
+						for (h=(int)(splitters.getElementAt(block)); h<STRING_LENGTH; h++) System.err.print(string.getElementAt(h));
 						System.err.println();
 					}
 					return false;
@@ -872,9 +872,9 @@ public class Tests {
 
 	private static final boolean checkBinarySearchCache(int left, int right, IntArray splitters, IntArray cache, IntArray string) {
 		int mid = (left+right)>>1;
-		int midLeftLCP = string.lcp(splitters.getElementAt(mid),splitters.getElementAt(left),false);
+		int midLeftLCP = (int)(string.lcp(splitters.getElementAt(mid),splitters.getElementAt(left),false));
 		if (cache.getElementAt(2*(mid-1))!=midLeftLCP) return false;
-		int midRightLCP = string.lcp(splitters.getElementAt(mid),splitters.getElementAt(right),false);
+		int midRightLCP = (int)(string.lcp(splitters.getElementAt(mid),splitters.getElementAt(right),false));
 		if (cache.getElementAt(2*(mid-1)+1)!=midRightLCP) return false;
 		boolean out = true;
 		if (mid-left>1) out&=checkBinarySearchCache(left,mid,splitters,cache,string);
@@ -918,7 +918,7 @@ public class Tests {
 
 
 	private static final boolean checkSuffixesInOut(int low, int high, IntArray out, IntArray string) {
-		final int STRING_LENGTH = string.length();
+		final int STRING_LENGTH = (int)(string.length());
 		boolean lowOK, highOK, inInterval, inOut;
 		int j, h;
 
@@ -988,10 +988,10 @@ public class Tests {
 			out.clear();
 			Suffixes.buildLCPArray(suffix,string,out,constants);
 			for (j=1; j<=constants.DISTINGUISHING_PREFIX; j++) {
-				lcp=string.lcp(suffix,suffix+j,true);
+				lcp=(int)(string.lcp(suffix,suffix+j,true));
 				length=lcp&Utils.MSB_INT_ZERO;
 				sign=lcp&Utils.MSB_INT_ONE;
-				lcpArray=out.getElementAt(j);
+				lcpArray=(int)(out.getElementAt(j));
 				if ((lcpArray&SELECT_LENGTH)!=length) {
 					System.out.println("Length error: lcp="+Integer.toBinaryString(lcp)+" lcpArray="+Integer.toBinaryString(lcpArray));
 					return false;
@@ -1039,13 +1039,14 @@ public class Tests {
 		final int N_RANDOM_STRINGS = 10;
 		final int STRING_LENGTH = 100;
 		final int N_RANDOM_SWAPS = 100;
+		final int BITS_PER_INT = 64;
 		int i, j, tmp, from, to;
 		IntArray string;
 		XorShiftStarRandom random = new XorShiftStarRandom();
 
 		for (i=0; i<N_RANDOM_STRINGS; i++) {
 			// Building a new string
-			string = new IntArray(STRING_LENGTH,2,false);
+			string = new IntArray(STRING_LENGTH,BITS_PER_INT,false);
 			int[] stringArray = new int[STRING_LENGTH];
 			for (j=0; j<STRING_LENGTH; j++) {
 				tmp=random.nextInt(4);
@@ -1074,13 +1075,14 @@ public class Tests {
 		final int N_RANDOM_STRINGS = 10;
 		final int STRING_LENGTH = 100;
 		final int N_RANDOM_SWAPS = 100;
+		final int BITS_PER_INT = 64;
 		int i, j, k, n, tmp, from1, from2;
 		IntArray string;
 		XorShiftStarRandom random = new XorShiftStarRandom();
 
 		for (i=0; i<N_RANDOM_STRINGS; i++) {
 			// Building a new string
-			string = new IntArray(STRING_LENGTH,2,false);
+			string = new IntArray(STRING_LENGTH,BITS_PER_INT,false);
 			int[] stringArray = new int[STRING_LENGTH];
 			for (j=0; j<STRING_LENGTH; j++) {
 				tmp=random.nextInt(4);
@@ -1114,13 +1116,14 @@ public class Tests {
 		final int N_RANDOM_INCREMENTS = 100000;
 		final int ARRAY_LENGTH = 100;
 		final int MAX_VALUE = 100;
+		final int BITS_PER_INT = 64;
 		int i, j, k, tmp;
 		IntArray array;
 		XorShiftStarRandom random = new XorShiftStarRandom();
 
 		for (i=0; i<N_RANDOM_ARRAYS; i++) {
 			// Building a new array
-			array = new IntArray(ARRAY_LENGTH,32,false);
+			array = new IntArray(ARRAY_LENGTH,BITS_PER_INT,false);
 			int[] realArray = new int[ARRAY_LENGTH];
 			for (j=0; j<ARRAY_LENGTH; j++) {
 				tmp=random.nextInt(MAX_VALUE);
@@ -1148,13 +1151,14 @@ public class Tests {
 		final int N_RANDOM_ARRAYS = 1000;
 		final int ARRAY_LENGTH = 10000;
 		final int MAX_VALUE = 100;
+		final int BITS_PER_INT = 64;
 		int i, j, k, tmp;
 		IntArray array;
 		XorShiftStarRandom random = new XorShiftStarRandom();
 
 		for (i=0; i<N_RANDOM_ARRAYS; i++) {
 			// Building a new array
-			array = new IntArray(ARRAY_LENGTH,16,false);
+			array = new IntArray(ARRAY_LENGTH,BITS_PER_INT,false);
 			int[] realArray = new int[ARRAY_LENGTH];
 			for (j=0; j<ARRAY_LENGTH; j++) {
 				tmp=random.nextInt(MAX_VALUE);
@@ -1163,9 +1167,9 @@ public class Tests {
 			}
 
 			// Testing equivalence
-			for (j=0; j<ARRAY_LENGTH; j+=4) {
-				for (k=0; k<4; k++) {
-					if (array.getElementAt(j+k)!=realArray[j+3-k]) return false;
+			for (j=0; j<ARRAY_LENGTH; j+=64/BITS_PER_INT) {
+				for (k=0; k<64/BITS_PER_INT; k++) {
+					if (array.getElementAt(j+k)!=realArray[j+64/BITS_PER_INT-1-k]) return false;
 				}
 			}
 		}
@@ -1205,7 +1209,7 @@ public class Tests {
 		final int STRING_LENGTH = 1000;
 		int i, j;
 		IntArray string, suffixes_quicksort, suffixes_inssort, suffixes_heapsort;
-		long[] cache_quicksort, cache_inssort, cache_heapsort;
+		IntArray cache_quicksort, cache_inssort, cache_heapsort;
 		XorShiftStarRandom random = new XorShiftStarRandom();
 
 		for (i=0; i<N_RANDOM_STRINGS; i++) {
@@ -1221,22 +1225,22 @@ public class Tests {
 			// quicksort
 			suffixes_quicksort = new IntArray(STRING_LENGTH,Utils.log2(STRING_LENGTH));
 			for (j=0; j<STRING_LENGTH; j++) suffixes_quicksort.push(j);
-			cache_quicksort = new long[STRING_LENGTH];
-			for (j=0; j<STRING_LENGTH; j++) cache_quicksort[j]=string.load63(j<<string.log2BitsPerInt);
+			cache_quicksort = new IntArray(STRING_LENGTH,64,true);
+			for (j=0; j<STRING_LENGTH; j++) cache_quicksort.setElementAt(j,string.load63(j<<string.log2BitsPerInt));
 			Suffixes.quicksort(suffixes_quicksort,0,STRING_LENGTH,0,0,string,cache_quicksort,    Integer.MAX_VALUE,1,random);  //Suffixes.QUICKSORT_HEAPSORT_SCALE*Utils.log2(STRING_LENGTH), Suffixes.STOP_QUICKSORT_AT_SIZE, random);
 
 			// insertionSort
 			suffixes_inssort = new IntArray(STRING_LENGTH,Utils.log2(STRING_LENGTH));
 			for (j=0; j<STRING_LENGTH; j++) suffixes_inssort.push(j);
-			cache_inssort = new long[STRING_LENGTH];
-			for (j=0; j<STRING_LENGTH; j++) cache_inssort[j]=string.load63(j<<string.log2BitsPerInt);
+			cache_inssort = new IntArray(STRING_LENGTH,64,true);
+			for (j=0; j<STRING_LENGTH; j++) cache_inssort.setElementAt(j,string.load63(j<<string.log2BitsPerInt));
 			Suffixes.insertionSort(suffixes_inssort,0,STRING_LENGTH,string,cache_inssort);
 
 			// heapSort
 			suffixes_heapsort = new IntArray(STRING_LENGTH,Utils.log2(STRING_LENGTH));
 			for (j=0; j<STRING_LENGTH; j++) suffixes_heapsort.push(j);
-			cache_heapsort = new long[STRING_LENGTH];
-			for (j=0; j<STRING_LENGTH; j++) cache_heapsort[j]=string.load63(j<<string.log2BitsPerInt);
+			cache_heapsort = new IntArray(STRING_LENGTH,64,true);
+			for (j=0; j<STRING_LENGTH; j++) cache_heapsort.setElementAt(j,string.load63(j<<string.log2BitsPerInt));
 			Suffixes.heapSort(suffixes_heapsort,0,STRING_LENGTH,string,cache_heapsort);
 
 			// Testing equivalence
@@ -1244,17 +1248,17 @@ public class Tests {
 				if (suffixes_inssort.getElementAt(j)!=suffixes_heapsort.getElementAt(j)) {
 					System.err.println("MISMATCH inssort-heapsort");
 					System.err.println("inssort:");
-					suffixes_inssort.printAsSuffixes(string);
+					suffixes_inssort.printAsDNASuffixes(string);
 					System.err.println("heapsort:");
-					suffixes_heapsort.printAsSuffixes(string);
+					suffixes_heapsort.printAsDNASuffixes(string);
 					return false;
 				}
 				if (suffixes_inssort.getElementAt(j)!=suffixes_quicksort.getElementAt(j)) {
 					System.err.println("MISMATCH inssort-quicksort");
 					System.err.println("inssort:");
-					suffixes_inssort.printAsSuffixes(string);
+					suffixes_inssort.printAsDNASuffixes(string);
 					System.err.println("quicksort:");
-					suffixes_quicksort.printAsSuffixes(string);
+					suffixes_quicksort.printAsDNASuffixes(string);
 					return false;
 				}
 			}

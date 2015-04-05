@@ -13,7 +13,6 @@
  *
  * Remark: there might be the need to re-implement all $IntArray$ to store from right
  * to left inside a long, since this could waive some subtractions.
- *
  */
 public class IntArray {
 
@@ -29,7 +28,7 @@ public class IntArray {
 
 	/**
 	 * @param maxLength maximum number of elements the array can contain;
-	 * @param bpi number of bits to represent an integer, $1 \leq bpi < 64$. To avoid
+	 * @param bpi number of bits to represent an integer, $1 \leq bpi \leq 64$. To avoid
 	 * multiplications/divisions, the actual number of bits per integer used by the array
 	 * is $Utils.closestPowerOfTwo(bpi)$.
 	 * @param fillWithZeros inserts $maxLength$ zeros in the array.
@@ -45,6 +44,7 @@ public class IntArray {
 			case 8: log2BitsPerInt=3; intsPerLong=8; oneSelectors=Utils.oneSelectors8; zeroSelectors=Utils.zeroSelectors8; break;
 			case 16: log2BitsPerInt=4; intsPerLong=4; oneSelectors=Utils.oneSelectors16; zeroSelectors=Utils.zeroSelectors16; break;
 			case 32: log2BitsPerInt=5; intsPerLong=2; oneSelectors=Utils.oneSelectors32; zeroSelectors=Utils.zeroSelectors32; break;
+			case 64: log2BitsPerInt=6; intsPerLong=1; oneSelectors=Utils.oneSelectors64; zeroSelectors=Utils.zeroSelectors64; break;
 			default: log2BitsPerInt=0; intsPerLong=64; oneSelectors=Utils.oneSelectors1; zeroSelectors=Utils.zeroSelectors1; break;
 		}
 		nCells=(int)( ((maxLength<<log2BitsPerInt)>>6)+1 );
@@ -316,6 +316,7 @@ public class IntArray {
 		}
 		else {
 			tmp=sixtyFourMinusBitsPerInt-offset;
+//System.out.println("cell="+cell+" offset="+offset+" bitsPerInt="+bitsPerInt+" tmp="+tmp);
 			array[cell]&=zeroSelectors[tmp];
 			value<<=tmp;
 			array[cell]|=value;

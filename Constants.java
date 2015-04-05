@@ -50,7 +50,7 @@ public class Constants {
 	 * the donor. Must be at least 1.
 	 * Increasing this value has the drawback of making the receiver scan a longer prefix
 	 * of the donor stack, but it has the advantage of increasing the granularity of the
-	 * stealing.
+	 * stealing, and thus of improving load balancing \cite{rao1987parallel}.
 	 */
 	public int MAX_STRING_LENGTH_FOR_SPLIT = 3;
 

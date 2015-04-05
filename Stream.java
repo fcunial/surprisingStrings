@@ -241,7 +241,7 @@ public class Stream {
 
 
 
-
+// ----------------------------------- Appendix ------------------------------------------
 
 	/**
 	 * Advances the pointer by $n \leq 64$ bits.

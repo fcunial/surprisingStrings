@@ -82,12 +82,12 @@ public class HuffmanWaveletTree {
 				node=nodeParent[node];
 			}
 		}
-		for (i=0; i<alphabetLength-1; i++) bitVectors[i] = new IntArray((int)nBits[i],1);
+		for (i=0; i<alphabetLength-1; i++) bitVectors[i] = new IntArray(nBits[i],1);
 		nBits=null;
 
 		// Pushing bits from $string$
 		for (il=0; il<stringLength; il++) {
-			j=Arrays.binarySearch(alphabet,string.getElementAt((int)il));
+			j=Arrays.binarySearch(alphabet,(int)( string.getElementAt(il) ));
 			length=codeLengths[j];
 			node=alphabetLength-2;
 			for (k=length-1; k>=0; k--) {
@@ -219,9 +219,9 @@ public class HuffmanWaveletTree {
 	public final int access(long position) {
 		if (alphabetLength==1) return alphabet[0];
 		int node = alphabetLength-2;
-		int effectivePosition;
+		long effectivePosition;
 		while (node>=0) {
-			effectivePosition=(((int)position)/64)*64 + (64-(((int)position)%64)-1);
+			effectivePosition=(position/64)*64 + (64-(position%64)-1);
 			if (rankDataStructures[node].bitVector.getElementAt(effectivePosition)==0) {
 				position-=rankDataStructures[node].rank(position);
 				node=leftChild[node];
@@ -247,7 +247,8 @@ public class HuffmanWaveletTree {
 	 * in $alphabet$), since $string$ could be a substring of a longer string, with
 	 * reduced alphabet.
 	 *
-	 * @param nPositions number of positions in $string$ to rank;
+	 * @param nPositions number of positions in $string$ to rank, assumed to be at most
+	 * $Integer.MAX_VALUE-1$;
 	 * @param stack a temporary matrix with at least $fullAlphabetLength-1$ rows and
 	 * $1+nPositions$ columns; the procedure assumes that the positions to be ranked are
 	 * written in increasing order in row 0, starting from index 1 (one, not zero); the

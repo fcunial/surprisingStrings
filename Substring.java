@@ -10,22 +10,23 @@
  * $v = a \cdot suf(v), a \in \Sigma$. It is the responsibility of $v$ to automatically
  * update these features given $suf(v)$.
  *
- * Remark: This object contain just the first character of $v$. The remaining characters
+ * Remark: This object contains just the first character of $v$. The remaining characters
  * must be reconstructed by navigating the stack suffix by suffix.
  *
  * Remark: This object and its subclasses are designed to be employed as reusable data
  * containers, i.e. just as facilities to load data from a bit stream, manipulate it, and
- * push it back to the stream. A typical program needs only a limited number of instances
- * of this object at any given time.
+ * push it back to the stream, similar to JavaBeans. A typical program needs only a
+ * limited number of instances of this object at any given time.
  */
 public class Substring {
 
 	protected static final int MAX_BITS_PER_POINTER = 64;  // Maximum number of bits to encode a stack pointer in $serialized(v)$
 	protected static final int MAX_BITS_PER_LENGTH = 64;  // Maximum number of bits to encode a substring length in $serialized(v)$
 	protected static final int MIN_POINTERS = 3;  // Minimum number of pointers in $stackPointers$
-	protected final int alphabetLength, log2alphabetLength, textLength, log2textLength;
+	protected final int alphabetLength, log2alphabetLength, log2textLength;
 	protected final int nIntervals;  // Number of rows in $bwtIntervals$
 	protected final int nPointers;  // Number of elements in $stackPointers$
+	protected final long textLength;
 
 	/**
 	 * Intervals of substrings (possibly different from $v$) in $BWT_s$, used to implement
@@ -70,7 +71,7 @@ public class Substring {
 	protected boolean hasBeenStolen;
 
 
-	protected Substring(int alphabetLength, int log2alphabetLength, int textLength, int log2textLength) {
+	protected Substring(int alphabetLength, int log2alphabetLength, long textLength, int log2textLength) {
 		this.alphabetLength=alphabetLength;
 		this.log2alphabetLength=log2alphabetLength;
 		this.textLength=textLength;
@@ -118,7 +119,7 @@ public class Substring {
 
 	/**
 	 * Stores in $characters$ a $Substring$ instance corresponding to each character in
-	 * the \emph{effective} alphabet of the text, and to $\$$, in lexicographic order.
+	 * the \emph{effective} alphabet of the text, and to $#$, in lexicographic order.
 	 *
 	 * @param C the $C$ array of backward search;
 	 * @param characters empty array with at least $alphabetLength+1$ cells;
@@ -218,7 +219,7 @@ public class Substring {
 	 * $SubstringIterator$.
 	 */
 	protected boolean shouldBeExtendedLeft() {
-		return firstCharacter>-1;  // Not extending to the left substrings that start by $\$$
+		return firstCharacter>-1;  // Not extending to the left substrings that start by $#$
 	}
 
 
@@ -267,7 +268,7 @@ public class Substring {
 	 * @return an \emph{upper bound} on the number of bits required to serialize any
 	 * instance of this class.
 	 */
-	protected int serializedSize() {
+	protected long serializedSize() {
 		return 1+1+
 			   (nPointers-1)*MAX_BITS_PER_POINTER+
 			   (nIntervals<<1)*log2textLength+
