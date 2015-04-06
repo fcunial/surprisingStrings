@@ -345,7 +345,7 @@ public class Suffixes {
 	 * than $string[low..]$ and smaller than $string[high..]$. The setting $low<0$ is
 	 * interpreted as $string[low..]=\epsilon$, and the setting $high<0$ is interpreted as
 	 * $string[high..]=x^\infty$, where $x>a \forall a \in \Sigma$. $out$ is not sorted
-	 * lexicographically, and it does not contain $\$$.
+	 * lexicographically, and it does not contain $#$.
 	 *
 	 * The procedure is sequential: the comparisons of each suffix with
 	 * $string[low..]$ and with $string[high..]$ are not parallelized, since each such
@@ -964,7 +964,7 @@ public class Suffixes {
 
 				// Building local BWT block
 				blockStart=blockStarts.getElementAt(rightSplitter);
-				if (rightSplitter==0) {  // Making room for suffix $\$$
+				if (rightSplitter==0) {  // Making room for suffix $#$
 					bwtBlock.push(string.getElementAt(stringLength-1));
 					pointer=1;
 				}
@@ -1077,7 +1077,7 @@ public class Suffixes {
 				// symbols in the block and while pushing them in the wavelet tree.
 				bwtBlock.clear();
 				localBlockCounts[rightSplitter] = new IntArray(alphabetLength,Utils.bitsToEncode(blockLength+2),true);  // In the worst case, a suffix array block can be augmented with two additional characters.
-				if (rightSplitter==0) {  // Making room for suffix $\$$
+				if (rightSplitter==0) {  // Making room for suffix $#$
 					c=string.getElementAt(stringLength-1);
 					bwtBlock.push(c);
 					localBlockCounts[rightSplitter].incrementElementAt(c);

@@ -23,10 +23,11 @@ public class Substring {
 	protected static final int MAX_BITS_PER_POINTER = 64;  // Maximum number of bits to encode a stack pointer in $serialized(v)$
 	protected static final int MAX_BITS_PER_LENGTH = 64;  // Maximum number of bits to encode a substring length in $serialized(v)$
 	protected static final int MIN_POINTERS = 3;  // Minimum number of pointers in $stackPointers$
-	protected final int alphabetLength, log2alphabetLength, log2textLength;
-	protected final int nIntervals;  // Number of rows in $bwtIntervals$
-	protected final int nPointers;  // Number of elements in $stackPointers$
-	protected final long textLength;
+	protected int alphabetLength, log2alphabetLength, log2textLength;
+	protected int nIntervals;  // Number of rows in $bwtIntervals$
+	protected int nPointers;  // Number of elements in $stackPointers$
+	protected long textLength;
+	protected boolean bwtIntervalsAreSorted;  // TRUE iff the sequence $bwtIntervals[0][0],bwtIntervals[0][1],bwtIntervals[1][0],bwtIntervals[0][1],...$ is increasing. Avoids one sorting operation in $extendLeft$.
 
 	/**
 	 * Intervals of substrings (possibly different from $v$) in $BWT_s$, used to implement
@@ -71,6 +72,14 @@ public class Substring {
 	protected boolean hasBeenStolen;
 
 
+	/**
+	 * Artificial no-argument constructor, used just to avoid compile-time errors.
+	 * Every subclass of $Substring$ must provide a full reimplementation of the
+	 * constructor with arguments.
+	 */
+	protected Substring() { }
+
+
 	protected Substring(int alphabetLength, int log2alphabetLength, long textLength, int log2textLength) {
 		this.alphabetLength=alphabetLength;
 		this.log2alphabetLength=log2alphabetLength;
@@ -78,6 +87,7 @@ public class Substring {
 		this.log2textLength=log2textLength;
 		nIntervals=1;
 		bwtIntervals = new long[nIntervals][2];
+		bwtIntervalsAreSorted=true;
 		nPointers=3;
 		stackPointers = new long[nPointers];
 	}
@@ -118,48 +128,16 @@ public class Substring {
 
 
 	/**
-	 * Stores in $characters$ a $Substring$ instance corresponding to each character in
-	 * the \emph{effective} alphabet of the text, and to $#$, in lexicographic order.
+	 * Returns a representation of the empty string, which is pushed on the stack first.
 	 *
-	 * @param C the $C$ array of backward search;
-	 * @param characters empty array with at least $alphabetLength+1$ cells;
-	 * @return the number of cells in $characters$ effectively filled. This number might
-	 * be smaller than $alphabetLength+1$ if the effective alphabet of the text is smaller
-	 * than the entire alphabet.
+	 * @param C the $C$ array of backward search, assumed to exclude $#$.
 	 */
-	protected int getLengthOneSubstrings(long[] C, Substring[] characters) {
-		int i, j;
-		Substring w;
-
-		// Character $\$$
-		w=getInstance();
-		w.bwtIntervals[0][0]=0;
-		w.bwtIntervals[0][1]=0;
-		w.length=1;
-		w.firstCharacter=-1;
-		characters[0]=w;
-
-		// Other characters
-		j=1;
-		for (i=0; i<alphabetLength-1; i++) {
-			if (C[i+1]-C[i]>0) {
-				w=getInstance();
-				w.bwtIntervals[0][0]=C[i];
-				w.bwtIntervals[0][1]=C[i+1]-1;
-				w.length=1;
-				w.firstCharacter=i;
-				characters[j++]=w;
-			}
-		}
-		if (textLength+1-C[alphabetLength-1]>0) {
-			w=getInstance();
-			w.bwtIntervals[0][0]=C[alphabetLength-1];
-			w.bwtIntervals[0][1]=textLength;
-			w.length=1;
-			w.firstCharacter=alphabetLength-1;
-			characters[j++]=w;
-		}
-		return j;
+	protected Substring getEpsilon(long[] C) {
+		Substring out = new Substring(alphabetLength,log2alphabetLength,textLength,log2textLength);
+		out.bwtIntervals[0][0]=0;
+		out.bwtIntervals[0][1]=textLength;
+		out.length=0;
+		return out;
 	}
 
 
@@ -175,7 +153,7 @@ public class Substring {
 		final long backupPosition = stack.getPosition();
 		final long length = substring.length;
 		boolean out = false;
-		Substring w = new Substring(substring.alphabetLength,substring.log2alphabetLength,substring.textLength,substring.log2textLength);
+		Substring w = substring.getInstance();
 		w.firstCharacter=substring.firstCharacter;
 		w.stackPointers[2]=substring.stackPointers[2];
 		sequence.clear();
@@ -233,9 +211,9 @@ public class Substring {
 	 * @return true iff $v$ occurs in $s$
 	 */
 	protected boolean occurs() {
-		return bwtIntervals[0][0]>=0 && bwtIntervals[0][0]<=textLength &&
-			   bwtIntervals[0][1]>=0 && bwtIntervals[0][1]<=textLength &&
-			   bwtIntervals[0][1]>=bwtIntervals[0][0];
+		// We assume that the rest of the code is correct and that $bwtIntervals[0][0]$
+		// and $bwtIntervals[0][1]$ are valid.
+		return bwtIntervals[0][1]>=bwtIntervals[0][0];
 	}
 
 

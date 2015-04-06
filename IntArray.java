@@ -261,8 +261,8 @@ public class IntArray {
 	 * @return $0 \cdot v[i..i+63)$, assuming that $v[j]=0$ for all
 	 * $j \geq bitsPerInt*nElements$. This assumption simplifies cached LCP computations,
 	 * but it induces an infinite loop when sorting suffixes $(0^{bitsPerInt})^{x}$ and
-	 * $(0^{bitsPerInt})^{y}$: thus, the input array must not have a suffix longer than
-	 * one that consists only of zeros.
+	 * $(0^{bitsPerInt})^{y}$ if we don't take into account the starting position of a
+	 * suffix.
 	 */
 	public final long load63(long i) {
 		int cell = (int)( i>>>6 );

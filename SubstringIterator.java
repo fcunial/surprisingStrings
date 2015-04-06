@@ -61,7 +61,7 @@ public class SubstringIterator {
 		this.alphabetLength=alphabetLength;
 		log2alphabetLength=Utils.log2(alphabetLength);
 		long blockSize = Suffixes.blockwiseBWT_getBlockSize(stringLength,log2stringLength,log2alphabetLength,constants);
-blockSize=2;
+//blockSize=2;
 		long nb = Utils.divideAndRoundUp(stringLength,blockSize);  // This value is just an upper bound: $Suffixes.blockwiseBWT$ will set the effective number of blocks.
 		if (nb<4) nBlocks=4;
 		else if (nb>Integer.MAX_VALUE) nBlocks=Integer.MAX_VALUE;
@@ -102,7 +102,7 @@ blockSize=2;
 	/**
 	 * Extends to the left the first substring $w$ from the top of $stack$ that has not
 	 * been extended yet, popping out of $stack$ all the substrings met before $w$ that
-	 * have already been extended. Extensions $aw$, $a \in \{\Sigma \cup \$\}$, such that
+	 * have already been extended. Extensions $aw$, $a \in \{\Sigma \cup #\}$, such that
 	 * their method $occurs$ returns true, are notified by calling their method $visited$,
 	 * and they are pushed onto $stack$ if their method $shouldBeExtendedLeft$ returns
 	 * true.
@@ -112,7 +112,7 @@ blockSize=2;
 	 * @param w non-null temporary, reused container representing the string at the top of
 	 * $stack$;
 	 * @param leftExtensions $alphabetLength+1$ non-null temporary, reused containers
-	 * representing $aw$ for all $a \in \Sigma$; $\$$ is assigned element 0, and all other
+	 * representing $aw$ for all $a \in \Sigma$; $#$ is assigned element 0, and all other
 	 * characters are shifted forward by one;
 	 * @param positions $w.nIntervals*2$ non-null temporary, reused containers of the
 	 * interval positions of $w$;
@@ -158,7 +158,7 @@ blockSize=2;
 			positions[p].position=pos; positions[p].row=i; positions[p].column=1;
 			positions[p].block=(int)blockBoundaries.rank(pos+1)-1;
 		}
-		Arrays.sort(positions);
+		if (!w.bwtIntervalsAreSorted) Arrays.sort(positions);
 		nPositions=w.nIntervals<<1;
 
 		// Ranking all positions in the same block using exactly one $multirank$ call
@@ -281,37 +281,24 @@ blockSize=2;
 		CountDownLatch latch = new CountDownLatch(constants.N_THREADS);
 		for (i=0; i<constants.N_THREADS; i++) threads[i] = new SubstringIteratorThread(threads,i,donorGenerator,latch);
 
-		// Initializing the stack of $threads[0]$ with $\epsilon$, the distinct characters
-		// in the text, and $#$. The distinct characters in the text might be a proper
-		// subset of the full alphabet. $\epsilon$ is pushed in order to detect when the
-		// stack becomes empty by issuing $stack.getPosition()>0$ (we cannot store
-		// negative numbers in the stack). Thus, a stack always contains at least one
-		// string, except for the stacks of threads different from $threads[0]$
+		// Initializing the stack of $threads[0]$ with an artificial substring followed by
+		// $\epsilon$. The artificial substring is pushed in order to detect when the
+		// stack becomes empty by issuing $stack.getPosition()>0$, since we cannot store
+		// negative numbers in the stack. Thus, a stack always contains at least the
+		// artificial string, except for the stacks of threads different from $threads[0]$
 		// immediately after their creation.
-		Substring epsilon = SUBSTRING_CLASS.getInstance();
-		epsilon.hasBeenExtended=true;
+		Substring artificial = SUBSTRING_CLASS.getInstance();
+		artificial.hasBeenExtended=true;  // In this way it will always be copied by $stealWork$
+		artificial.push(threads[0].stack);
+		artificial.deallocate(); artificial=null;
+		Substring epsilon = SUBSTRING_CLASS.getEpsilon(C);
+		epsilon.visited(threads[0].stack);
 		epsilon.push(threads[0].stack);
+		threads[0].stack.setPosition(epsilon.stackPointers[0]);
 		epsilon.deallocate(); epsilon=null;
-		Substring[] lengthOneSubstrings = new Substring[alphabetLength+1];
-		nCharacters=SUBSTRING_CLASS.getLengthOneSubstrings(C,lengthOneSubstrings);
-		lengthOneSubstrings[0].visited(threads[0].stack);  // $#$, not pushed on the stack but visited.
-		previous=0L;
-		for (i=1; i<nCharacters; i++) {  // Other characters
-			lengthOneSubstrings[i].visited(threads[0].stack);
-			lengthOneSubstrings[i].stackPointers[1]=previous;
-			lengthOneSubstrings[i].stackPointers[2]=0L;
-			lengthOneSubstrings[i].push(threads[0].stack);
-			previous=lengthOneSubstrings[i].stackPointers[0];
-		}
-		threads[0].stack.setPosition(lengthOneSubstrings[nCharacters-1].stackPointers[0]);
-		threads[0].nStrings=nCharacters;
-		threads[0].nStringsNotExtended=nCharacters-1;
-		threads[0].nShortStringsNotExtended=nCharacters-1;
-		for (i=0; i<nCharacters; i++) {
-			lengthOneSubstrings[i].deallocate();
-			lengthOneSubstrings[i]=null;
-		}
-		lengthOneSubstrings=null;
+		threads[0].nStrings=1;
+		threads[0].nStringsNotExtended=1;
+		threads[0].nShortStringsNotExtended=0;
 
 		// Launching all threads
 		for (i=0; i<constants.N_THREADS; i++) threads[i].start();
@@ -372,7 +359,7 @@ blockSize=2;
 		protected Stream stack;
 		protected long nStrings;  // Total number of strings in $stack$
 		protected long nStringsNotExtended;  // Number of strings in $stack$ that have not been extended
-		protected long nShortStringsNotExtended;  // Number of strings in $stack$ that have not been extended, and that have length $<=MAX_STRING_LENGTH_FOR_SPLIT$.
+		protected long nShortStringsNotExtended;  // Number of strings in $stack$ that have not been extended, and that have length in $[1..MAX_STRING_LENGTH_FOR_SPLIT]$.
 		private boolean isAlive;  // Flags a dead thread
 		private SubstringIteratorThread[] threads;  // Pointers to all threads
 		private final int nThreads;  // Number of threads in $threads$
