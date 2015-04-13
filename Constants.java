@@ -28,7 +28,7 @@ public class Constants {
 	 * by $string$). Inversely proportional to the number of blocks and to construction
 	 * time. Does not affect the time of $run$ if substrings have just one interval.
 	 */
-	public long MAX_MEMORY = 500000;
+	public long MAX_MEMORY = 7000000;
 
 
 

@@ -1,14 +1,26 @@
 /**
  * Representation of a substring $v$ of a text $s$ as understood by $SubstringIterator$.
- * For $SubstringIterator$, a substring $v$ of $s$ has the following features: (1) A set
- * of substring intervals in $BWT_s$, including but not limited to the interval of $v$.
- * These intervals are maintained by $SubstringIterator$ itself. (2) The ability to be
- * pushed to and popped from a stack, as well as a set of pointers to the stack. (3) The
- * ability to receive a signal when $v$ is explored for the first time by
- * $SubstringIterator$. (4) An additional set of variables, unknown to
- * $SubstringIterator$, that depend only on $suf(v)$, i.e. on the string that satisfies
- * $v = a \cdot suf(v), a \in \Sigma$. It is the responsibility of $v$ to automatically
- * update these features given $suf(v)$.
+ * For $SubstringIterator$, a substring $v$ of $s$ has the following features:
+ *
+ * (1) A set of substring intervals in $BWT_s$ (for example the interval of $v$). Such
+ * intervals are maintained by $SubstringIterator.extendLeft$. $Substring$ fixes the
+ * maximum number of intervals, the intervals of $\epsilon$, and whether the starting and
+ * ending positions of the intervals are stored in sorted order. Different instances of
+ * the same $Substring$ class could have a different number of intervals.
+ *
+ * (2) A set of pointers to previous positions in the stack of $SubstringIterator$. Such
+ * pointers are managed by $Substring$ itself, specifically by method $init$. $Substring$
+ * fixes also the maximum number of such pointers. Different instances of the same
+ * $Substring$ class could have a different number of pointers.
+ *
+ * (3) An additional set of variables, unknown to $SubstringIterator$, that depend only on
+ * $suf(v)$, i.e. on the string that satisfies $v = a \cdot suf(v), a \in \Sigma$. It is
+ * the responsibility of $v$ to update these variables given $suf(v)$, inside method $init$.
+ *
+ * (4) The ability to be pushed to and popped from the stack of $SubstringIterator$.
+ *
+ * (5) The ability to receive a signal when $v$ is explored for the first time by
+ * $SubstringIterator$ (method $visited$).
  *
  * Remark: This object contains just the first character of $v$. The remaining characters
  * must be reconstructed by navigating the stack suffix by suffix.
@@ -16,18 +28,24 @@
  * Remark: This object and its subclasses are designed to be employed as reusable data
  * containers, i.e. just as facilities to load data from a bit stream, manipulate it, and
  * push it back to the stream, similar to JavaBeans. A typical program needs only a
- * limited number of instances of this object at any given time.
+ * limited number of instances of this object at any given time, it allocates the memory
+ * for each such instance exactly once (inside the constructor), and such memory is the
+ * largest possible to accommodate any instance loaded from the stack.
  */
 public class Substring {
 
 	protected static final int MAX_BITS_PER_POINTER = 64;  // Maximum number of bits to encode a stack pointer in $serialized(v)$
 	protected static final int MAX_BITS_PER_LENGTH = 64;  // Maximum number of bits to encode a substring length in $serialized(v)$
 	protected static final int MIN_POINTERS = 3;  // Minimum number of pointers in $stackPointers$
-	protected int alphabetLength, log2alphabetLength, log2textLength;
+	protected static int MAX_POINTERS;  // Maximum number of pointers in $stackPointers$. To be set by each descendant class.
+	protected static int BITS_TO_ENCODE_MAX_POINTERS;
+	protected static int MAX_INTERVALS;  // Maximum number of rows in $bwtIntervals$. To be set by each descendant class.
+	protected static int BITS_TO_ENCODE_MAX_INTERVALS;
+	protected static boolean BWT_INTERVALS_ARE_SORTED;  // TRUE iff the sequence $bwtIntervals[0][0],bwtIntervals[0][1],bwtIntervals[1][0],bwtIntervals[0][1],...$ is increasing. Avoids one sorting operation in $extendLeft$. To be set by each descendant class.
+	protected int alphabetLength, log2alphabetLength, log2bwtLength;
 	protected int nIntervals;  // Number of rows in $bwtIntervals$
 	protected int nPointers;  // Number of elements in $stackPointers$
-	protected long textLength;
-	protected boolean bwtIntervalsAreSorted;  // TRUE iff the sequence $bwtIntervals[0][0],bwtIntervals[0][1],bwtIntervals[1][0],bwtIntervals[0][1],...$ is increasing. Avoids one sorting operation in $extendLeft$.
+	protected long bwtLength;
 
 	/**
 	 * Intervals of substrings (possibly different from $v$) in $BWT_s$, used to implement
@@ -48,7 +66,7 @@ public class Substring {
 	 * such that $w.hasBeenExtended=true$.
 	 */
 	protected long[] stackPointers;
-	private int log2address;  // $Utils.log2(stackPointers[0])$
+	protected int log2address;  // $Utils.log2(stackPointers[0])$
 
 	/**
 	 * $|v|$
@@ -80,16 +98,22 @@ public class Substring {
 	protected Substring() { }
 
 
-	protected Substring(int alphabetLength, int log2alphabetLength, long textLength, int log2textLength) {
+	/**
+	 * @param bwtLength $|s|+1$, where $s$ is the input text;
+	 * @param log2bwtLength $\log_{2}(|s|+1)$, where $s$ is the input text.
+	 */
+	protected Substring(int alphabetLength, int log2alphabetLength, long bwtLength, int log2bwtLength) {
 		this.alphabetLength=alphabetLength;
 		this.log2alphabetLength=log2alphabetLength;
-		this.textLength=textLength;
-		this.log2textLength=log2textLength;
-		nIntervals=1;
-		bwtIntervals = new long[nIntervals][2];
-		bwtIntervalsAreSorted=true;
-		nPointers=3;
-		stackPointers = new long[nPointers];
+		this.bwtLength=bwtLength;
+		this.log2bwtLength=log2bwtLength;
+		MAX_INTERVALS=1;
+		BITS_TO_ENCODE_MAX_INTERVALS=Utils.bitsToEncode(MAX_INTERVALS);
+		BWT_INTERVALS_ARE_SORTED=true;
+		bwtIntervals = new long[MAX_INTERVALS][2];
+		MAX_POINTERS=MIN_POINTERS;
+		BITS_TO_ENCODE_MAX_POINTERS=Utils.bitsToEncode(MAX_POINTERS);
+		stackPointers = new long[MAX_POINTERS];
 	}
 
 
@@ -107,8 +131,8 @@ public class Substring {
 		for (i=0; i<nIntervals; i++) {
 			if (bwtIntervals[i][0]!=otherSubstring.bwtIntervals[i][0] || bwtIntervals[i][1]!=otherSubstring.bwtIntervals[i][1]) return false;
 		}
-		if (nPointers!=otherSubstring.nPointers) return false;
-/*		for (i=0; i<nPointers; i++) {
+/*		if (nPointers!=otherSubstring.nPointers) return false;
+		for (i=0; i<nPointers; i++) {
 			if (stackPointers[i]!=otherSubstring.stackPointers[i]) return false;
 		}
 */		if (length!=otherSubstring.length) return false;
@@ -123,7 +147,7 @@ public class Substring {
 	 * verbosity of the $java.lang.reflect$ apparatus.
 	 */
 	protected Substring getInstance() {
-		return new Substring(alphabetLength,log2alphabetLength,textLength,log2textLength);
+		return new Substring(alphabetLength,log2alphabetLength,bwtLength,log2bwtLength);
 	}
 
 
@@ -133,10 +157,12 @@ public class Substring {
 	 * @param C the $C$ array of backward search, assumed to exclude $#$.
 	 */
 	protected Substring getEpsilon(long[] C) {
-		Substring out = new Substring(alphabetLength,log2alphabetLength,textLength,log2textLength);
-		out.bwtIntervals[0][0]=0;
-		out.bwtIntervals[0][1]=textLength;
+		Substring out = getInstance();
 		out.length=0;
+		out.nIntervals=1;
+		out.bwtIntervals[0][0]=0;
+		out.bwtIntervals[0][1]=bwtLength-1;
+		out.nPointers=MIN_POINTERS;
 		return out;
 	}
 
@@ -176,20 +202,43 @@ public class Substring {
 
 
 	public String toString() {
-		return "[address="+stackPointers[0]+"|previous="+stackPointers[1]+"|suffix="+stackPointers[2]+"|length="+length+"]";
+		String out = "address="+stackPointers[0]+"|previous="+stackPointers[1]+"|suffix="+stackPointers[2]+"|length="+length+"|firstCharacter="+firstCharacter+"|nPointers="+nPointers+"|nIntervals="+nIntervals+"\n";
+		for (int i=0; i<nIntervals; i++) out+="["+bwtIntervals[i][0]+".."+bwtIntervals[i][1]+"], ";
+		out+="\n";
+		return out;
 	}
 
 
 	/**
-	 * Initializes string $v$ from the current setting of $bwtIntervals$ and from $suf(v)$.
+	 * Initializes string $v$ from $suf(v)$ and from the current setting of $bwtIntervals$
+	 * and $stackPointers$.
 	 *
-	 * @param firstCharacter -1 indicates $\$$.
+	 * @param firstCharacter first character of $v$; -1 indicates $#$;
+	 * @param buffer reusable memory area in which $suffix$ has stored additional
+	 * information for the initialization of $v$. We assume
+	 * $buffer.length>=alphabetLength+1$.
 	 */
-	protected void init(Substring suffix, int firstCharacter) {
-		stackPointers[2]=suffix.stackPointers[0];
+	protected void init(Substring suffix, int firstCharacter, Stream stack, long[] buffer) {
 		length=suffix.length+1;
 		this.firstCharacter=firstCharacter;
+		nPointers=MIN_POINTERS;
+		stackPointers[2]=suffix.stackPointers[0];
 	}
+
+
+	/**
+	 * Fills $buffer$ with messages for initializing the left extensions of $v$.
+	 * The procedure assumes that $buffer$ is empty before invocation, i.e. that
+	 * $buffer[i]=-1$ for all $i \in [0..buffer.length]$, and that
+	 * $buffer.length>=alphabetLength+1$.
+	 */
+	protected void fillBuffer(long[] buffer) { }
+
+
+	/**
+	 * Returns $buffer$ to the empty state by undoing what has been done by $fillBuffer$.
+	 */
+	protected void emptyBuffer(long[] buffer) { }
 
 
 	/**
@@ -222,23 +271,29 @@ public class Substring {
 	// ---------------------------- STACK MANAGEMENT -------------------------------------
 
 	/**
-	 * Appends to $stack$ the serialized representation of $v$.
-	 * This method overwrites $stackPointers[0]$.
+	 * Appends to $stack$ the serialized representation of $v$, overwrites
+	 * $stackPointers[0]$, and transforms into to $stackPointers[0]$ every -1 in
+	 * $stackPointers$.
 	 */
 	protected void push(Stream stack) {
 		stackPointers[0]=stack.length();
-		log2address=stackPointers[0]==0?MAX_BITS_PER_POINTER:Utils.log2(stackPointers[0]);
+		log2address=stackPointers[0]==0?MAX_BITS_PER_POINTER:Utils.bitsToEncode(stackPointers[0]);
 		stack.push(stackPointers[1],log2address);
 		stack.push(hasBeenExtended?1:0,1);
 		stack.push(hasBeenStolen?1:0,1);
-		int i;
-		for (i=2; i<nPointers; i++) stack.push(stackPointers[i],log2address);
-		for (i=0; i<nIntervals; i++) {
-			stack.push(bwtIntervals[i][0],log2textLength);
-			stack.push(bwtIntervals[i][1],log2textLength);
-		}
-		stack.push(length,log2textLength);
+		stack.push(length,log2bwtLength);
 		stack.push(firstCharacter,log2alphabetLength);
+		stack.push(nPointers,BITS_TO_ENCODE_MAX_POINTERS);
+		stack.push(nIntervals,BITS_TO_ENCODE_MAX_INTERVALS);
+		int i;
+		for (i=2; i<nPointers; i++) {
+			if (stackPointers[i]==-1) stackPointers[i]=stackPointers[0];
+			stack.push(stackPointers[i],log2address);
+		}
+		for (i=0; i<nIntervals; i++) {
+			stack.push(bwtIntervals[i][0],log2bwtLength);
+			stack.push(bwtIntervals[i][1],log2bwtLength);
+		}
 	}
 
 
@@ -247,11 +302,14 @@ public class Substring {
 	 * instance of this class.
 	 */
 	protected long serializedSize() {
-		return 1+1+
-			   (nPointers-1)*MAX_BITS_PER_POINTER+
-			   (nIntervals<<1)*log2textLength+
-			   MAX_BITS_PER_LENGTH+
-			   log2alphabetLength;
+		return MAX_BITS_PER_POINTER+
+			   1+1+
+			   log2bwtLength+
+			   log2alphabetLength+
+			   BITS_TO_ENCODE_MAX_POINTERS+
+			   BITS_TO_ENCODE_MAX_INTERVALS+
+			   (nPointers-2)*MAX_BITS_PER_POINTER+
+			   (nIntervals<<1)*log2bwtLength;
 	}
 
 
@@ -265,41 +323,68 @@ public class Substring {
 	 */
 	protected void read(Stream stack) {
 		stackPointers[0]=stack.getPosition();
-		log2address=stackPointers[0]==0?MAX_BITS_PER_POINTER:Utils.log2(stackPointers[0]);
+		log2address=stackPointers[0]==0?MAX_BITS_PER_POINTER:Utils.bitsToEncode(stackPointers[0]);
 		stackPointers[1]=stack.read(log2address);
 		hasBeenExtended=stack.read(1)==1?true:false;
 		hasBeenStolen=stack.read(1)==1?true:false;
+		length=stack.read(log2bwtLength);
+		firstCharacter=(int)stack.read(log2alphabetLength);
+		nPointers=(int)stack.read(BITS_TO_ENCODE_MAX_POINTERS);
+		nIntervals=(int)stack.read(BITS_TO_ENCODE_MAX_INTERVALS);
+		readBody(stack);
+	}
+
+
+	private void readBody(Stream stack) {
 		int i;
 		for (i=2; i<nPointers; i++) stackPointers[i]=stack.read(log2address);
 		for (i=0; i<nIntervals; i++) {
-			bwtIntervals[i][0]=stack.read(log2textLength);
-			bwtIntervals[i][1]=stack.read(log2textLength);
+			bwtIntervals[i][0]=stack.read(log2bwtLength);
+			bwtIntervals[i][1]=stack.read(log2bwtLength);
 		}
-		length=stack.read(log2textLength);
-		firstCharacter=(int)stack.read(log2alphabetLength);
 	}
 
 
 	/**
 	 * Same as $read$, but if $hasBeenExtended=true$ or $hasBeenStolen=true$ the procedure
-	 * halts without reading the whole serialized substring.
+	 * halts after reading the serialized substring up to $nIntervals$, and it leaves the
+	 * stack position immediately after the end of the serialized substring.
 	 */
 	protected void readFast(Stream stack) {
 		stackPointers[0]=stack.getPosition();
-		log2address=stackPointers[0]==0?MAX_BITS_PER_POINTER:Utils.log2(stackPointers[0]);
+		log2address=stackPointers[0]==0?MAX_BITS_PER_POINTER:Utils.bitsToEncode(stackPointers[0]);
 		stackPointers[1]=stack.read(log2address);
 		hasBeenExtended=stack.read(1)==1?true:false;
-		if (hasBeenExtended) return;
 		hasBeenStolen=stack.read(1)==1?true:false;
-		if (hasBeenStolen) return;
-		int i;
-		for (i=2; i<nPointers; i++) stackPointers[i]=stack.read(log2address);
-		for (i=0; i<nIntervals; i++) {
-			bwtIntervals[i][0]=stack.read(log2textLength);
-			bwtIntervals[i][1]=stack.read(log2textLength);
-		}
-		length=stack.read(log2textLength);
+		length=stack.read(log2bwtLength);
 		firstCharacter=(int)stack.read(log2alphabetLength);
+		nPointers=(int)stack.read(BITS_TO_ENCODE_MAX_POINTERS);
+		nIntervals=(int)stack.read(BITS_TO_ENCODE_MAX_INTERVALS);
+		if (hasBeenExtended||hasBeenStolen) stack.setPosition(stack.getPosition()+
+															  (nPointers-2)*log2address+
+															  nIntervals*log2bwtLength*2);
+		else readBody(stack);
+	}
+
+
+	/**
+	 * Same as $read$, but the procedure halts after reading the serialized substring up
+	 * to $nIntervals$, and it leaves the stack position immediately after the end of the
+	 * serialized substring.
+	 */
+	protected void readFast2(Stream stack) {
+		stackPointers[0]=stack.getPosition();
+		log2address=stackPointers[0]==0?MAX_BITS_PER_POINTER:Utils.bitsToEncode(stackPointers[0]);
+		stackPointers[1]=stack.read(log2address);
+		hasBeenExtended=stack.read(1)==1?true:false;
+		hasBeenStolen=stack.read(1)==1?true:false;
+		length=stack.read(log2bwtLength);
+		firstCharacter=(int)stack.read(log2alphabetLength);
+		nPointers=(int)stack.read(BITS_TO_ENCODE_MAX_POINTERS);
+		nIntervals=(int)stack.read(BITS_TO_ENCODE_MAX_INTERVALS);
+		stack.setPosition(stack.getPosition()+
+						  (nPointers-2)*log2address+
+						  nIntervals*log2bwtLength*2);
 	}
 
 
@@ -310,17 +395,15 @@ public class Substring {
 	 * the previous serialized substring.
 	 */
 	protected void pop(Stream stack) {
-		int i;
-		stack.pop(log2alphabetLength);
-		stack.pop(log2textLength);
-		for (i=0; i<nIntervals; i++) {
-			stack.pop(log2textLength);
-			stack.pop(log2textLength);
-		}
-		for (i=2; i<nPointers; i++) stack.pop(log2address);
-		stack.pop(1);
-		stack.pop(1);
-		stack.pop(log2address);
+		stack.pop(nIntervals*log2bwtLength*2+
+				  log2address*(nPointers-2)+
+				  BITS_TO_ENCODE_MAX_INTERVALS+
+				  BITS_TO_ENCODE_MAX_POINTERS+
+				  log2alphabetLength+
+				  log2bwtLength+
+				  1+
+				  1+
+				  log2address);
 		stack.setPosition(stackPointers[1]);
 	}
 
@@ -331,16 +414,19 @@ public class Substring {
 	 *
 	 * @return the number of bits to encode pointers in $serialized(v)$.
 	 */
-	protected int skip(Stream stack) {
-		stack.setPosition(stackPointers[0]+log2address+
-										   1+1+
-										   (nPointers-2)*log2address+
-										   (nIntervals<<1)*log2textLength+
-										   log2textLength+
-										   log2alphabetLength);
+/*	protected int skip(Stream stack) {
+		stack.setPosition(stackPointers[0]+
+						  log2address+
+						  1+1+
+						  log2bwtLength+
+						  log2alphabetLength+
+						  BITS_TO_ENCODE_MAX_POINTERS+
+						  BITS_TO_ENCODE_MAX_INTERVALS+
+						  (nPointers-2)*log2address+
+						  (nIntervals<<1)*log2bwtLength);
 		return log2address;
 	}
-
+*/
 
 	/**
 	 * Sets $hasBeenExtended=true$ in the serialized representation of $v$ in $stack$,

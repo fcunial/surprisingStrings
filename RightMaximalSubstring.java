@@ -1,11 +1,12 @@
 /**
  * Instructs $SubstringIterator$ to visit only the right-maximal substrings $w$ of a
  * string. $intervals[c]$ contains the interval of $wc$ for all $c \in \Sigma \cup \{#\}$,
- * in lexicographic order: see \cite{belazzougui2014linear}.
+ * in lexicographic order (see \cite{belazzougui2014linear}). This choice is not suitable
+ * for large alphabets.
  */
 public class RightMaximalSubstring extends Substring {
 
-	protected boolean isRightMaximal;
+	protected int rightContext;
 
 
 	/**
@@ -15,27 +16,31 @@ public class RightMaximalSubstring extends Substring {
 	protected RightMaximalSubstring() { }
 
 
-	protected RightMaximalSubstring(int alphabetLength, int log2alphabetLength, long textLength, int log2textLength) {
+	protected RightMaximalSubstring(int alphabetLength, int log2alphabetLength, long bwtLength, int log2bwtLength) {
 		this.alphabetLength=alphabetLength;
 		this.log2alphabetLength=log2alphabetLength;
-		this.textLength=textLength;
-		this.log2textLength=log2textLength;
-		nIntervals=alphabetLength+1;
-		bwtIntervals = new long[nIntervals][2];
-		bwtIntervalsAreSorted=true;
-		nPointers=3;
-		stackPointers = new long[nPointers];
+		this.bwtLength=bwtLength;
+		this.log2bwtLength=log2bwtLength;
+		MAX_INTERVALS=alphabetLength+1;
+		BITS_TO_ENCODE_MAX_INTERVALS=Utils.bitsToEncode(MAX_INTERVALS);
+		BWT_INTERVALS_ARE_SORTED=true;
+		bwtIntervals = new long[MAX_INTERVALS][2];
+		MAX_POINTERS=MIN_POINTERS;
+		BITS_TO_ENCODE_MAX_POINTERS=Utils.bitsToEncode(MAX_POINTERS);
+		stackPointers = new long[MAX_POINTERS];
 	}
 
 
-	protected static Substring getInstance(int alphabetLength, int log2alphabetLength, long textLength, int log2textLength) {
-		return new RightMaximalSubstring(alphabetLength,log2alphabetLength,textLength,log2textLength);
+	protected static Substring getInstance(int alphabetLength, int log2alphabetLength, long bwtLength, int log2bwtLength) {
+		return new RightMaximalSubstring(alphabetLength,log2alphabetLength,bwtLength,log2bwtLength);
 	}
 
 
 	protected Substring getEpsilon(long[] C) {
-		RightMaximalSubstring out = new RightMaximalSubstring(alphabetLength,log2alphabetLength,textLength,log2textLength);
+		Substring out = getInstance();
 		out.length=0;
+		out.nIntervals=alphabetLength+1;
+		out.nPointers=MIN_POINTERS;
 
 		// $#$
 		out.bwtIntervals[0][0]=0;
@@ -47,24 +52,29 @@ public class RightMaximalSubstring extends Substring {
 			out.bwtIntervals[i+1][1]=C[i+1]-1;
 		}
 		out.bwtIntervals[alphabetLength][0]=C[alphabetLength-1];
-		out.bwtIntervals[alphabetLength][1]=textLength;
+		out.bwtIntervals[alphabetLength][1]=bwtLength-1;
 
 		return out;
 	}
 
 
-	protected void init(Substring suffix, int firstCharacter) {
-		super.init(suffix,firstCharacter);
-		int rightContext = 0;
-		for (int c=0; c<alphabetLength; c++) {
+	protected final void computeRightContext() {
+		rightContext=0;
+		for (int c=0; c<nIntervals; c++) {
 			if (bwtIntervals[c][1]>=bwtIntervals[c][0]) rightContext++;
 		}
-		isRightMaximal=rightContext>1;
+	}
+
+
+	protected void init(Substring suffix, int firstCharacter, Stream stack, long[] buffer) {
+		super.init(suffix,firstCharacter,stack,buffer);
+		computeRightContext();
+//System.out.println("nIntervals="+nIntervals+" rightContext="+rightContext);
 	}
 
 
 	protected boolean shouldBeExtendedLeft() {
-		return isRightMaximal;
+		return rightContext>1;
 	}
 
 

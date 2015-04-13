@@ -61,7 +61,7 @@ public class SubstringIterator {
 		this.alphabetLength=alphabetLength;
 		log2alphabetLength=Utils.log2(alphabetLength);
 		long blockSize = Suffixes.blockwiseBWT_getBlockSize(stringLength,log2stringLength,log2alphabetLength,constants);
-//blockSize=2;
+blockSize=2;
 		long nb = Utils.divideAndRoundUp(stringLength,blockSize);  // This value is just an upper bound: $Suffixes.blockwiseBWT$ will set the effective number of blocks.
 		if (nb<4) nBlocks=4;
 		else if (nb>Integer.MAX_VALUE) nBlocks=Integer.MAX_VALUE;
@@ -127,8 +127,11 @@ public class SubstringIterator {
 	 * cell 1: the variation $-1 \leq \delta < alphabetLength+1$ in the number of
 	 * \emph{non-extended} strings $v$ in $stack$, induced by this call to $extendLeft$;
 	 * cell 2: as in cell 1, but only for strings with $|v| \leq maxStringLengthToReport$.
+	 * @param extensionBuffer reused memory area that contains messages for initializing
+	 * the left extensions of $w$. We assume $buffer[i]=-1$ for all $i$. The procedure
+	 * returns $buffer$ to its input state before terminating.
 	 */
-	private final void extendLeft(Stream stack, Substring w, Substring[] leftExtensions, Position[] positions, long[][] multirankStack, long[][] multirankOutput, long[] multirankOnes, int maxStringLengthToReport, long[] out) {
+	private final void extendLeft(Stream stack, Substring w, Substring[] leftExtensions, Position[] positions, long[][] multirankStack, long[][] multirankOutput, long[] multirankOnes, int maxStringLengthToReport, long[] out, long[] extensionBuffer) {
 		final boolean isShort;
 		boolean pushed;
 		int i, j, c, p, windowFirst, windowSize, block, previousBlock, nPositions;
@@ -158,10 +161,11 @@ public class SubstringIterator {
 			positions[p].position=pos; positions[p].row=i; positions[p].column=1;
 			positions[p].block=(int)blockBoundaries.rank(pos+1)-1;
 		}
-		if (!w.bwtIntervalsAreSorted) Arrays.sort(positions);
+		if (!w.BWT_INTERVALS_ARE_SORTED) Arrays.sort(positions);
 		nPositions=w.nIntervals<<1;
 
 		// Ranking all positions in the same block using exactly one $multirank$ call
+		for (i=0; i<=alphabetLength; i++) leftExtensions[i].nIntervals=w.nIntervals;
 		windowFirst=0; windowSize=1;
 		previousBlock=positions[windowFirst].block;
 		multirankStack[0][1]=positions[windowFirst].position-blockStarts.getElementAt(previousBlock);
@@ -202,11 +206,12 @@ public class SubstringIterator {
 		// Signalling to the left-extensions of $w$, and pushing them onto $stack$.
 		isShort=w.length+1<=maxStringLengthToReport;
 		extension=null; pushed=false;
+		w.fillBuffer(extensionBuffer);
 		previous=w.stackPointers[0];
 		for (c=0; c<alphabetLength+1; c++) {
 			extension=leftExtensions[c];
 			if (extension.occurs()) {
-				extension.init(w,c-1);
+				extension.init(w,c-1,stack,extensionBuffer);
 				extension.visited(stack);
 				if (extension.shouldBeExtendedLeft()) {
 					extension.stackPointers[1]=previous;
@@ -217,7 +222,9 @@ public class SubstringIterator {
 				}
 			}
 		}
+		w.emptyBuffer(extensionBuffer);
 		w.markAsExtended(stack);
+//System.out.println("done extending ("+w.firstCharacter+","+w.stackPointers[0]+") length="+w.length);
 		out[1]--;
 		if (w.length<=maxStringLengthToReport) out[2]--;
 		stack.setPosition(pushed?previous:w.stackPointers[0]);
@@ -287,7 +294,7 @@ public class SubstringIterator {
 		// negative numbers in the stack. Thus, a stack always contains at least the
 		// artificial string, except for the stacks of threads different from $threads[0]$
 		// immediately after their creation.
-		Substring artificial = SUBSTRING_CLASS.getInstance();
+		Substring artificial = SUBSTRING_CLASS.getEpsilon(C);
 		artificial.hasBeenExtended=true;  // In this way it will always be copied by $stealWork$
 		artificial.push(threads[0].stack);
 		artificial.deallocate(); artificial=null;
@@ -409,13 +416,15 @@ public class SubstringIterator {
 			int i;
 			Substring[] leftExtensions = new Substring[alphabetLength+1];
 			for (i=0; i<alphabetLength+1; i++) leftExtensions[i]=SUBSTRING_CLASS.getInstance();
-			final int maxPositions = SUBSTRING_CLASS.nIntervals<<1;
+			final int maxPositions = SUBSTRING_CLASS.MAX_INTERVALS<<1;
 			Position[] positions = new Position[maxPositions];
 			for (i=0; i<maxPositions; i++) positions[i] = new Position();
 			long[][] multirankStack = new long[alphabetLength-1][1+maxPositions];
 			long[][] multirankOutput = new long[alphabetLength][maxPositions];
 			long[] multirankOnes = new long[maxPositions];
 			long[] extendLeftOutput = new long[3];
+			long[] extensionBuffer = new long[alphabetLength+1];
+			for (i=0; i<=alphabetLength; i++) extensionBuffer[i]=-1;
 			Substring w = SUBSTRING_CLASS.getInstance();
 
 			isAlive=true;
@@ -425,7 +434,7 @@ public class SubstringIterator {
 				while (true) {
 					synchronized(this) {
 						if (stack.getPosition()>0) {
-							extendLeft(stack,w,leftExtensions,positions,multirankStack,multirankOutput,multirankOnes,constants.MAX_STRING_LENGTH_FOR_SPLIT,extendLeftOutput);
+							extendLeft(stack,w,leftExtensions,positions,multirankStack,multirankOutput,multirankOnes,constants.MAX_STRING_LENGTH_FOR_SPLIT,extendLeftOutput,extensionBuffer);
 							nStrings+=extendLeftOutput[0];
 							nStringsNotExtended+=extendLeftOutput[1];
 							nShortStringsNotExtended+=extendLeftOutput[2];

@@ -98,26 +98,21 @@ public class Stream {
 
 
 	/**
-	 * Removes $n \leq 64$ bits from the top of the stack, possibly contracting it. The
-	 * last region is immediately deallocated if unused.
+	 * Removes an arbitrary number of bits from the top of the stack, possibly contracting
+	 * it. The last unused regions are immediately deallocated.
 	 *
-	 * Remark: the procedure assumes that $n \leq nBits$.
 	 * Remark: the random access pointer could be in an invalid position after $pop$.
 	 * This case is not explicitly checked.
 	 */
-	public final void pop(int n) {
-		if (n<topOffset) topOffset-=n;
-		else {
-			if (topCell>0) topCell--;
-			else {
-				regions[topRegion]=null;
-				topRegion--;
-				topCell=LONGS_PER_REGION-1;
-			}
-			topOffset=64-n+topOffset;
-		}
+	public final void pop(long n) {
 		nBits-=n;
+		int newTopRegion = (int)(nBits>>>(LOG2_LONGS_PER_REGION+6));
+		for (int i=newTopRegion+1; i<=topRegion; i++) regions[i]=null;
+		topRegion=newTopRegion;
+		topCell=(int)((nBits>>>6)-(topRegion<<LOG2_LONGS_PER_REGION));
+		topOffset=(int)(nBits&Utils.LAST_6_BITS_LONG);
 	}
+
 
 
 

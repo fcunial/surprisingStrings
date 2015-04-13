@@ -107,25 +107,350 @@ public class Tests {
 			System.exit(1);
 		}
 		else System.out.println("SubstringIterator \t\t\t [   OK   ]");
-*/
 		// Testing $RightMaximalSubstring$
 		if (!test_rightMaximalSubstring()) {
 			System.err.println("RightMaximalSubstring \t\t\t [ FAILED ]");
 			System.exit(1);
 		}
 		else System.out.println("RightMaximalSubstring \t\t\t [   OK   ]");
+
+		// Testing $BorderSubstring$
+		if (!test_borderSubstring()) {
+			System.err.println("BorderSubstring \t\t\t [ FAILED ]");
+			System.exit(1);
+		}
+		else System.out.println("BorderSubstring \t\t\t [   OK   ]");
+*/
+		// Testing $BorderSubstring$
+		if (!test_rightMaximalSubstringsWithBorder()) {
+			System.err.println("BorderSubstring \t\t\t [ FAILED ]");
+			System.exit(1);
+		}
+		else System.out.println("BorderSubstring \t\t\t [   OK   ]");
 	}
 
 
 
 
 	private static HashSet<String> iteratorSubstrings;
+	private static HashSet<StringWithBorder> iteratorSubstringsWithBorder;
 
 
 
 
 
 
+	/**
+	 * Set $blockSize=2;$ in the constructor of $SubstringIterator$ when testing with
+	 * small strings.
+	 */
+	private static final boolean test_rightMaximalSubstringsWithBorder() {
+		final int STRING_LENGTH = 100;
+		final int N_ITERATIONS = 100;
+		Constants constants = new Constants();
+		int i, j, k, c, sharpPosition;
+		int[] alphabet = new int[] {0,1,2,3};
+		String stringString = new String();
+		String[] trueSubstringsArray;
+		StringWithBorder[] iteratorSubstringsArray;
+		IntArray string;
+		XorShiftStarRandom random = new XorShiftStarRandom();
+		SubstringIterator iterator;
+		HashSet<String> trueSubstrings;
+
+		string = new IntArray(STRING_LENGTH,2,false);
+		for (i=0; i<N_ITERATIONS; i++) {
+			stringString="";
+			string.clear();
+			for (j=0; j<STRING_LENGTH; j++) {
+ 				c=random.nextInt(3);
+ 				stringString+=""+c;
+ 				string.push(c);
+ 			}
+
+			// Trivial enumeration of all distinct right-maximal substrings
+			boolean isRightMaximal;
+			int position, rightChar, previousRightChar;
+			String tmpString;
+			trueSubstrings = new HashSet<String>();
+			trueSubstrings.add("");  // Adding $\epsilon$
+			for (j=0; j<STRING_LENGTH; j++) {
+				for (k=j+1; k<=STRING_LENGTH; k++) {
+					tmpString=stringString.substring(j,k);
+					isRightMaximal=false; position=0; previousRightChar=-1;
+					while (true) {
+						position=stringString.indexOf(tmpString,position);
+						if (position==-1) break;
+						if (position+tmpString.length()==STRING_LENGTH) rightChar=Integer.MAX_VALUE;
+						else rightChar=stringString.charAt(position+tmpString.length());
+						if (previousRightChar!=-1 && rightChar!=previousRightChar) {
+							isRightMaximal=true;
+							break;
+						}
+						previousRightChar=rightChar;
+						position++;
+					}
+					if (isRightMaximal) trueSubstrings.add(tmpString);
+				}
+			}
+			trueSubstringsArray = new String[trueSubstrings.size()];
+			trueSubstrings.toArray(trueSubstringsArray);
+			Arrays.sort(trueSubstringsArray);
+//System.out.println("Trivial enumeration completed: "+trueSubstringsArray.length+" distinct right-maximal strings:");
+//for (int x=0; x<trueSubstringsArray.length; x++) System.out.println(trueSubstringsArray[x]);
+
+			// Running $SubstringIterator$
+			constants.N_THREADS=1;
+			constants.MAX_MEMORY=10;
+			iteratorSubstringsWithBorder = new HashSet<StringWithBorder>();
+			iterator = new SubstringIterator(string,alphabet,4,new TestBorderSubstring(4,2,STRING_LENGTH+1,Utils.log2(STRING_LENGTH+1),stringString),constants);
+			System.out.print("(");
+			iterator.run();
+			System.out.print(")");
+			iteratorSubstringsArray = new StringWithBorder[iteratorSubstringsWithBorder.size()];
+			iteratorSubstringsWithBorder.toArray(iteratorSubstringsArray);
+			Arrays.sort(iteratorSubstringsArray);
+//System.out.println("SubstringIterator enumeration completed: ");
+//for (int x=0; x<iteratorSubstringsArray.length; x++) System.out.println(iteratorSubstringsArray[x]);
+			// Tests
+			if (iteratorSubstringsWithBorder.size()!=trueSubstrings.size()) {
+				System.out.println("Error in BorderSubstring: correct total right-maximal substrings="+trueSubstrings.size()+" enumerated="+iteratorSubstringsWithBorder.size());
+				System.out.println("string: "+stringString);
+				return false;
+			}
+			for (int x=0; x<iteratorSubstringsArray.length; x++) {
+				if (Arrays.binarySearch(trueSubstringsArray,iteratorSubstringsArray[x].string)<0) {
+					System.out.println("Error in BorderSubstring: the enumerated right-maximal substring "+iteratorSubstringsArray[x].string+" does not exist.");
+					System.out.println("string: "+stringString);
+					return false;
+				}
+			}
+			for (int x=0; x<trueSubstringsArray.length; x++) {
+				if (Arrays.binarySearch(iteratorSubstringsArray,trueSubstringsArray[x])<0) {
+					System.out.println("Error in BorderSubstring: right-maximal substring "+trueSubstringsArray[x]+" in the string has not been enumerated.");
+					System.out.println("string: "+stringString);
+					return false;
+				}
+			}
+
+			// Checking border lengths
+			for (int x=0; x<iteratorSubstringsArray.length; x++) {
+				int ell = iteratorSubstringsArray[x].string.length();
+				if (ell==0) continue;
+				for (int a=1; a<ell; a++) {
+					boolean complete = true;
+					for (int b=0; b<ell-a; b++) {
+						if (iteratorSubstringsArray[x].string.charAt(b)!=iteratorSubstringsArray[x].string.charAt(a+b)) {
+							complete=false;
+							break;
+						}
+					}
+					if (complete) {
+						if (iteratorSubstringsArray[x].border!=ell-a) {
+							System.err.println("String "+iteratorSubstringsArray[x].string+" has border "+(ell-a)+", but iterator reports border "+iteratorSubstringsArray[x].border);
+							return false;
+						}
+						else break;
+					}
+				}
+			}
+
+		}
+
+		return true;
+	}
+
+
+
+	private static class TestBorderSubstring extends BorderSubstring {
+		private String text;
+
+		public TestBorderSubstring(int alphabetLength, int log2alphabetLength, long bwtLength, int log2bwtLength, String text) {
+			super(alphabetLength,log2alphabetLength,bwtLength,log2bwtLength);
+			this.text=text;
+		}
+
+		protected Substring getInstance() {
+			return new TestBorderSubstring(alphabetLength,log2alphabetLength,bwtLength,log2bwtLength,text);
+		}
+
+		protected void visited(Stream stack) {
+			if (length>bwtLength) {
+				System.err.println("ERROR: GENERATED A SUBSTRING LONGER THAN THE TEXT PLUS ONE: (length="+length+")");
+				System.err.println("text: "+text);
+				System.exit(1);
+			}
+
+			// Reconstructing the sequence
+			boolean startsWithSharp;
+			String str;
+			IntArray sequence = new IntArray((int)length,log2alphabetLength,false);
+			startsWithSharp=Substring.getSequence(this,stack,sequence);
+			if (startsWithSharp) str="#";
+			else str="";
+			for (int i=0; i<(startsWithSharp?length-1:length); i++) str+=""+sequence.getElementAt(i);
+/*System.out.println("generated substring "+str+" with the following intervals: (isRightMaximal="+isRightMaximal+", stackPointers[2]="+stackPointers[2]+" sequence.bitsPerInt="+sequence.bitsPerInt+")");
+for (int x=0; x<=alphabetLength; x++) {
+	System.out.print("["+bwtIntervals[x][0]+".."+bwtIntervals[x][1]+"] ");
+}
+System.out.println();
+*/
+			// Adding $\epsilon$
+			if (length==0) {
+				synchronized(iteratorSubstringsWithBorder) { iteratorSubstringsWithBorder.add(new StringWithBorder("",-1)); }
+				return;
+			}
+
+			// Right-maximality
+			if (rightContext>1) {
+				if (startsWithSharp) {
+					System.err.println("ERROR: GENERATED A RIGHT-MAXIMAL SUBSTRING THAT STARTS WITH #: "+str);
+					System.err.println("text: "+text);
+					System.exit(1);
+				}
+				synchronized(iteratorSubstringsWithBorder) { iteratorSubstringsWithBorder.add(new StringWithBorder(str,longestBorderLength)); }
+			}
+		}
+	}
+
+
+	public static class StringWithBorder implements Comparable {
+		public String string;
+		public long border;
+
+		public StringWithBorder(String s, long b) {
+			this.string=s;
+			this.border=b;
+		}
+
+		public int compareTo(Object other) {
+			if (other instanceof StringWithBorder) {
+				StringWithBorder otherSWB = (StringWithBorder)other;
+				return string.compareTo(otherSWB.string);
+			}
+			else if (other instanceof String) return string.compareTo((String)other);
+			return -1;
+		}
+
+		public String toString() {
+			return string;
+		}
+
+		public boolean equals(Object other) {
+			if (other instanceof StringWithBorder) {
+				StringWithBorder otherSWB = (StringWithBorder)other;
+				return string.equals(otherSWB.string);
+			}
+			else if (other instanceof String) return string.equals((String)other);
+			return false;
+		}
+	}
+
+
+	private static final boolean test_borderSubstring() {
+		final int TEXT_LENGTH = 1000;
+		final int N_ELEMENTS = 1000;
+		final int N_ITERATIONS = 100;
+		final int N_TESTS = 100;
+		int i, j, t, index;
+		long previous;
+		long[] extensionBuffer = new long[4+1];
+		for (i=0; i<=4; i++) extensionBuffer[i]=-1;
+		BorderSubstring[] substrings = new BorderSubstring[N_ELEMENTS];
+		Stream stack = new Stream(512);
+		BorderSubstring w = new BorderSubstring(4,2,TEXT_LENGTH,Utils.log2(TEXT_LENGTH));
+		XorShiftStarRandom random = new XorShiftStarRandom();
+
+		for (t=0; t<N_ITERATIONS; t++) {
+			// Pushing random $BorderSubstring$ objects on the stack
+			stack.clear(true); stack.setPosition(0L);
+			substrings[0] = (BorderSubstring)(w.getEpsilon(new long[4]));  // Artificial bottom of the stack
+			for (i=0; i<substrings[0].nIntervals; i++) {
+				substrings[0].bwtIntervals[i][0]=0;
+				substrings[0].bwtIntervals[i][1]=0;
+			}
+			substrings[0].push(stack);
+			substrings[1] = (BorderSubstring)(w.getEpsilon(new long[4]));  // $\epsilon$
+			for (i=0; i<substrings[1].nIntervals; i++) {
+				substrings[1].bwtIntervals[i][0]=0;
+				substrings[1].bwtIntervals[i][1]=0;
+			}
+			substrings[1].hasBeenExtended=true;
+			substrings[1].push(stack);
+			previous=substrings[1].stackPointers[0];
+			for (i=2; i<N_ELEMENTS; i++) {
+				substrings[i] = (BorderSubstring)(substrings[0].getInstance());
+				substrings[i].bwtIntervals[0][0]=random.nextInt(TEXT_LENGTH);
+				do { substrings[i].bwtIntervals[0][1]=random.nextInt(TEXT_LENGTH); }
+				while (substrings[i].bwtIntervals[0][1]<substrings[i].bwtIntervals[0][0]);
+				substrings[i].stackPointers[1]=previous;
+				substrings[i].hasBeenExtended=random.nextBoolean();
+				for (j=i-1; j>=0; j--) {
+					if (substrings[j].hasBeenExtended) {
+						stack.setPosition(substrings[j].stackPointers[0]);
+						substrings[j].fillBuffer(extensionBuffer);
+						substrings[i].init(substrings[j],random.nextInt(4),stack,extensionBuffer);
+						substrings[j].emptyBuffer(extensionBuffer);
+						break;
+					}
+				}
+				substrings[i].push(stack);
+				previous=substrings[i].stackPointers[0];
+			}
+
+			// Testing $read$
+			for (i=0; i<N_TESTS; i++) {
+				index=random.nextInt(N_ELEMENTS);
+				stack.setPosition(substrings[index].stackPointers[0]);
+				w.read(stack);
+				if (!w.equals(substrings[index])) {
+					System.err.println("Error in reading "+index+"th string. Real string:");
+					System.err.println(substrings[index]);
+					System.err.println("rightLength="+substrings[index].rightLength);
+					System.out.println("Read string:");
+					System.err.println(w);
+					System.err.println("rightLength="+w.rightLength);
+					return false;
+				}
+				stack.setPosition(substrings[index].stackPointers[0]);
+				w.readFast(stack);
+				if (!w.occurs()||!w.equals(substrings[index])) {
+					System.err.println("Error in readFast");
+					return false;
+				}
+			}
+
+			// Testing $pop$
+			for (i=0; i<N_TESTS; i++) {
+				index=random.nextInt(N_ELEMENTS);
+				stack.setPosition(substrings[N_ELEMENTS-1].stackPointers[0]);
+				for (j=N_ELEMENTS-1; j>index; j--) substrings[j].pop(stack);
+				if (stack.getPosition()!=substrings[index].stackPointers[0]) {
+					System.err.println("Error in pop");
+					return false;
+				}
+				w.read(stack);
+				if (!w.equals(substrings[index])) {
+					System.err.println("Error in pop");
+					return false;
+				}
+				// Pushing back the remaining substrings
+				for (j=index+1; j<N_ELEMENTS; j++) substrings[j].push(stack);
+			}
+
+/*			// Testing $skip$
+			for (i=0; i<N_TESTS; i++) {
+				index=random.nextInt(N_ELEMENTS-1);
+				stack.setPosition(substrings[index].stackPointers[0]);
+				substrings[index].skip(stack);
+				if (stack.getPosition()!=substrings[index+1].stackPointers[0]) {
+					System.err.println("Error in skip. Reported position: "+stack.getPosition()+" correct position: "+substrings[index+1].stackPointers[0]);
+					return false;
+				}
+			}
+*/		}
+		return true;
+	}
 
 
 	/**
@@ -190,11 +515,10 @@ public class Tests {
 			constants.N_THREADS=1;
 			constants.MAX_MEMORY=10;
 			iteratorSubstrings = new HashSet<String>();
-			iterator = new SubstringIterator(string,alphabet,4,new TestRightMaximalSubstring(4,2,STRING_LENGTH,Utils.log2(STRING_LENGTH),stringString),constants);
+			iterator = new SubstringIterator(string,alphabet,4,new TestRightMaximalSubstring(4,2,STRING_LENGTH+1,Utils.log2(STRING_LENGTH+1),stringString),constants);
 			System.out.print("(");
 			iterator.run();
 			System.out.print(")");
-			iteratorSubstrings.add("");  // The current implementation of $TestRightMaximalSubstring$ does not allow to visit $\epsilon$
 			iteratorSubstringsArray = new String[iteratorSubstrings.size()];
 			iteratorSubstrings.toArray(iteratorSubstringsArray);
 			Arrays.sort(iteratorSubstringsArray);
@@ -229,17 +553,17 @@ public class Tests {
 	private static class TestRightMaximalSubstring extends RightMaximalSubstring {
 		private String text;
 
-		public TestRightMaximalSubstring(int alphabetLength, int log2alphabetLength, long textLength, int log2textLength, String text) {
-			super(alphabetLength,log2alphabetLength,textLength,log2textLength);
+		public TestRightMaximalSubstring(int alphabetLength, int log2alphabetLength, long bwtLength, int log2bwtLength, String text) {
+			super(alphabetLength,log2alphabetLength,bwtLength,log2bwtLength);
 			this.text=text;
 		}
 
 		protected Substring getInstance() {
-			return new TestRightMaximalSubstring(alphabetLength,log2alphabetLength,textLength,log2textLength,text);
+			return new TestRightMaximalSubstring(alphabetLength,log2alphabetLength,bwtLength,log2bwtLength,text);
 		}
 
 		protected void visited(Stream stack) {
-			if (length>textLength+1) {
+			if (length>bwtLength) {
 				System.err.println("ERROR: GENERATED A SUBSTRING LONGER THAN THE TEXT PLUS ONE: (length="+length+")");
 				System.err.println("text: "+text);
 				System.exit(1);
@@ -266,7 +590,7 @@ System.out.println();
 			}
 
 			// Right-maximality
-			if (isRightMaximal) {
+			if (rightContext>1) {
 				if (startsWithSharp) {
 					System.err.println("ERROR: GENERATED A RIGHT-MAXIMAL SUBSTRING THAT STARTS WITH #: "+str);
 					System.err.println("text: "+text);
@@ -329,7 +653,7 @@ System.out.println();
 			constants.N_THREADS=1;
 			constants.MAX_MEMORY=10;
 			iteratorSubstrings = new HashSet<String>();
-			iterator = new SubstringIterator(string,alphabet,4,new TestSubstring(4,2,STRING_LENGTH,Utils.log2(STRING_LENGTH),stringString),constants);
+			iterator = new SubstringIterator(string,alphabet,4,new TestSubstring(4,2,STRING_LENGTH+1,Utils.log2(STRING_LENGTH+1),stringString),constants);
 			iterator.run();
 			iteratorSubstringsArray = new String[iteratorSubstrings.size()];
 			iteratorSubstrings.toArray(iteratorSubstringsArray);
@@ -359,10 +683,10 @@ System.out.println();
 			}
 */
 			// Running $SubstringIterator$ with multiple threads
-			constants.N_THREADS=2;
+			constants.N_THREADS=1;
 			constants.MAX_MEMORY=10;
 			iteratorSubstrings = new HashSet<String>();
-			iterator = new SubstringIterator(string,alphabet,4,new TestSubstring(4,2,STRING_LENGTH,Utils.log2(STRING_LENGTH),stringString),constants);
+			iterator = new SubstringIterator(string,alphabet,4,new TestSubstring(4,2,STRING_LENGTH+1,Utils.log2(STRING_LENGTH+1),stringString),constants);
 			System.out.print("(");
 			iterator.run();
 			System.out.print(")");
@@ -400,18 +724,17 @@ System.out.println();
 	private static class TestSubstring extends Substring {
 		private String text;
 
-		public TestSubstring(int alphabetLength, int log2alphabetLength, long textLength, int log2textLength, String text) {
-			super(alphabetLength,log2alphabetLength,textLength,log2textLength);
+		public TestSubstring(int alphabetLength, int log2alphabetLength, long bwtLength, int log2bwtLength, String text) {
+			super(alphabetLength,log2alphabetLength,bwtLength,log2bwtLength);
 			this.text=text;
 		}
 
 		protected Substring getInstance() {
-			return new TestSubstring(alphabetLength,log2alphabetLength,textLength,log2textLength,text);
+			return new TestSubstring(alphabetLength,log2alphabetLength,bwtLength,log2bwtLength,text);
 		}
 
 		protected void visited(Stream stack) {
-System.out.println("visited in TestSubstring");
-			if (length>textLength+1) {
+			if (length>bwtLength) {
 				System.err.println("ERROR: GENERATED A SUBSTRING LONGER THAN THE TEXT PLUS ONE: (length="+length+")");
 				System.err.println("text: "+text);
 				System.exit(1);
@@ -436,6 +759,8 @@ System.out.println("visited in TestSubstring");
 		final int N_TESTS = 100;
 		int i, j, t, index;
 		long previous;
+		long[] extensionBuffer = new long[4+1];
+		for (i=0; i<=4; i++) extensionBuffer[i]=-1;
 		Substring[] substrings = new Substring[N_ELEMENTS];
 		Stream stack = new Stream(512);
 		Substring w = new Substring(4,2,TEXT_LENGTH,Utils.log2(TEXT_LENGTH));
@@ -444,9 +769,7 @@ System.out.println("visited in TestSubstring");
 		for (t=0; t<N_ITERATIONS; t++) {
 			// Pushing random $Substring$ objects on the stack
 			stack.clear(true); stack.setPosition(0L);
-			substrings[0] = new Substring(4,2,TEXT_LENGTH,Utils.log2(TEXT_LENGTH));
-			substrings[0].bwtIntervals[0][0]=0L;
-			substrings[0].bwtIntervals[0][1]=TEXT_LENGTH-1;
+			substrings[0] = w.getEpsilon(new long[0]);
 			substrings[0].push(stack);
 			previous=0L;
 			for (i=1; i<N_ELEMENTS; i++) {
@@ -455,7 +778,7 @@ System.out.println("visited in TestSubstring");
 				do { substrings[i].bwtIntervals[0][1]=random.nextInt(TEXT_LENGTH); }
 				while (substrings[i].bwtIntervals[0][1]<substrings[i].bwtIntervals[0][0]);
 				substrings[i].stackPointers[1]=previous;
-				substrings[i].init(substrings[random.nextInt(i)],random.nextInt(4));
+				substrings[i].init(substrings[random.nextInt(i)],random.nextInt(4),stack,extensionBuffer);
 				substrings[i].push(stack);
 				previous=substrings[i].stackPointers[0];
 			}
@@ -495,17 +818,17 @@ System.out.println("visited in TestSubstring");
 				for (j=index+1; j<N_ELEMENTS; j++) substrings[j].push(stack);
 			}
 
-			// Testing $skip$
+/*			// Testing $skip$
 			for (i=0; i<N_TESTS; i++) {
 				index=random.nextInt(N_ELEMENTS-1);
 				stack.setPosition(substrings[index].stackPointers[0]);
 				substrings[index].skip(stack);
 				if (stack.getPosition()!=substrings[index+1].stackPointers[0]) {
-					System.err.println("Error in skip. Reported position: "+stack.getPosition()+" correct position: "+substrings[index+1].stackPointers[0]);
+					System.err.println("Error in skip from position "+substrings[index].stackPointers[0]+" (log2address="+substrings[index].log2address+", nPointers="+substrings[index].nPointers+"). Reported position: "+stack.getPosition()+" correct position: "+substrings[index+1].stackPointers[0]);
 					return false;
 				}
 			}
-		}
+*/		}
 		return true;
 	}
 
