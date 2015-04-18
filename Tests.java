@@ -285,7 +285,7 @@ public class Tests {
 	 * small strings.
 	 */
 	private static final boolean test_rightMaximalSubstringsWithBorder() {
-		final int STRING_LENGTH = 100;
+		final int STRING_LENGTH = 200;
 		final int N_ITERATIONS = 100;
 		Constants constants = new Constants();
 		int i, j, k, c, sharpPosition;
@@ -390,7 +390,15 @@ public class Tests {
 							System.err.println("String "+iteratorSubstringsArray[x].string+" has border "+(ell-a)+", but iterator reports border "+iteratorSubstringsArray[x].border);
 							return false;
 						}
-						else break;
+						if (iteratorSubstringsArray[x].rightCharacter!=Integer.parseInt(""+iteratorSubstringsArray[x].string.charAt(a-1))) {
+							System.err.println("String "+iteratorSubstringsArray[x].string+" has right character "+(iteratorSubstringsArray[x].string.charAt(a-1))+", but iterator reports right character "+iteratorSubstringsArray[x].rightCharacter);
+							return false;
+						}
+						if (iteratorSubstringsArray[x].leftCharacter!=Integer.parseInt(""+iteratorSubstringsArray[x].string.charAt(ell-a))) {
+							System.err.println("String "+iteratorSubstringsArray[x].string+" has left character "+(iteratorSubstringsArray[x].string.charAt(ell-a))+", but iterator reports left character "+iteratorSubstringsArray[x].leftCharacter);
+							return false;
+						}
+						break;
 					}
 				}
 			}
@@ -519,7 +527,7 @@ if (str.equals("000")) {
 
 			// Adding $\epsilon$
 			if (length==0) {
-				synchronized(iteratorSubstringsWithBorder) { iteratorSubstringsWithBorder.add(new StringWithBorder("",-1)); }
+				synchronized(iteratorSubstringsWithBorder) { iteratorSubstringsWithBorder.add(new StringWithBorder("",-1,-1,-1)); }
 				return;
 			}
 
@@ -530,7 +538,12 @@ if (str.equals("000")) {
 					System.err.println("text: "+text);
 					System.exit(1);
 				}
-				synchronized(iteratorSubstringsWithBorder) { iteratorSubstringsWithBorder.add(new StringWithBorder(str,longestBorder==null?0:longestBorder.length)); }
+				synchronized(iteratorSubstringsWithBorder) {
+//System.out.println("{"+longestBorderLeftCharacter+","+longestBorderRightCharacter+","+(longestBorder==null?"":longestBorder.length)+"} ");
+					if (longestBorder==null) iteratorSubstringsWithBorder.add(new StringWithBorder(str,0,-1,-1));
+					else iteratorSubstringsWithBorder.add(new StringWithBorder(str,longestBorder.length,leftCharacters[longestBorderLeftCharacter],
+																										rightCharacters[longestBorderRightCharacter]));
+				}
 			}
 		}
 	}
@@ -539,10 +552,13 @@ if (str.equals("000")) {
 	public static class StringWithBorder implements Comparable {
 		public String string;
 		public long border;
+		public int leftCharacter, rightCharacter;
 
-		public StringWithBorder(String s, long b) {
+		public StringWithBorder(String s, long b, int l, int r) {
 			this.string=s;
 			this.border=b;
+			this.leftCharacter=l;
+			this.rightCharacter=r;
 		}
 
 		public int compareTo(Object other) {

@@ -17,11 +17,34 @@ public class BorderSubstring extends RightMaximalSubstring {
 	protected int rightLength;  // Number of elements in $right_v$
 
 	/**
-	 * The longest border $y$ of $v$, and the index in $rightCharacters$ of the character
-	 * $d$ such that $v=xdy$, where $x$ is a string.
+	 * A representation of set $left_v=\{(a,v|a) : a \in \Sigma\}$, sorted by increasing
+	 * $a$, where $v|a$ is a pointer to the string $w$ in the stack such that $v=yadx$,
+	 * $w=yad$, $v=zy$, and $v=yr$, where $x,y,z,r$ are strings and $d,a$ are characters.
+	 * Specifically, $v|a$ is stored in $stackPointers[MIN_POINTERS+rightLength+i]$ if $a$
+	 * is the $i$th character in $left_v$.
+	 */
+	protected int[] leftCharacters;
+	protected int leftLength;  // Number of elements in $left_v$
+
+	/**
+	 * The longest border $y$ of $v$
 	 */
 	protected BorderSubstring longestBorder;
-	protected int longestBorderCharacter;
+
+	/**
+	 * The index in $rightCharacters$ of the character $d$ such that $v=xdy$,
+	 * where $y$ is the longest border of $v$ and $x$ is a string.
+	 * This number is pushed in the stack.
+	 */
+	protected int longestBorderRightCharacter;
+
+	/**
+	 * The index in $leftCharacters$ of the character $d$ such that $v=ydx$,
+	 * where $y$ is the longest border of $v$ and $x$ is a string.
+	 * This number is not pushed in the stack and it's not automatically computed when
+	 * reading the stack. It is, however, computed by $init$.
+	 */
+	protected int longestBorderLeftCharacter;
 
 
 	/**
@@ -40,10 +63,11 @@ public class BorderSubstring extends RightMaximalSubstring {
 		BITS_TO_ENCODE_MAX_INTERVALS=Utils.bitsToEncode(MAX_INTERVALS);
 		BWT_INTERVALS_ARE_SORTED=true;
 		bwtIntervals = new long[MAX_INTERVALS][2];
-		MAX_POINTERS=MIN_POINTERS+alphabetLength;
+		MAX_POINTERS=MIN_POINTERS+2*alphabetLength;
 		BITS_TO_ENCODE_MAX_POINTERS=Utils.bitsToEncode(MAX_POINTERS);
 		stackPointers = new long[MAX_POINTERS];
 		rightCharacters = new int[alphabetLength];
+		leftCharacters = new int[alphabetLength];
 	}
 
 
@@ -60,9 +84,12 @@ public class BorderSubstring extends RightMaximalSubstring {
 
 	private void pushBorderSubstring(Stream stack) {
 		stack.push(rightLength,log2alphabetLength);
+		stack.push(leftLength,log2alphabetLength);
 		if (rightLength==0) return;
-		stack.push(longestBorderCharacter,Utils.log2(rightLength));
-		for (int i=0; i<rightLength; i++) stack.push(rightCharacters[i],log2alphabetLength);
+		stack.push(longestBorderRightCharacter,Utils.log2(rightLength));
+		int i;
+		for (i=0; i<rightLength; i++) stack.push(rightCharacters[i],log2alphabetLength);
+		for (i=0; i<leftLength; i++) stack.push(leftCharacters[i],log2alphabetLength);
 	}
 
 
@@ -70,30 +97,36 @@ public class BorderSubstring extends RightMaximalSubstring {
 		return super.serializedSize()+
 			   log2alphabetLength+
 			   log2alphabetLength+
-			   alphabetLength*log2alphabetLength;
+			   log2alphabetLength+
+			   alphabetLength*log2alphabetLength*2;
 	}
 
 
 	protected void read(Stream stack) {
 		super.read(stack);
 		rightLength=(int)stack.read(log2alphabetLength);
+		leftLength=(int)stack.read(log2alphabetLength);
 		readBorderSubstring(stack);
 	}
 
 
 	private void readBorderSubstring(Stream stack) {
 		if (rightLength==0) {
-			longestBorderCharacter=-1;
+			longestBorderRightCharacter=-1;
+			leftLength=0;
 			return;
 		}
-		longestBorderCharacter=(int)stack.read(Utils.log2(rightLength));
-		for (int i=0; i<rightLength; i++) rightCharacters[i]=(int)stack.read(log2alphabetLength);
+		longestBorderRightCharacter=(int)stack.read(Utils.log2(rightLength));
+		int i;
+		for (i=0; i<rightLength; i++) rightCharacters[i]=(int)stack.read(log2alphabetLength);
+		for (i=0; i<leftLength; i++) leftCharacters[i]=(int)stack.read(log2alphabetLength);
 	}
 
 
 	protected void readFast(Stream stack) {
 		super.readFast(stack);
 		rightLength=(int)stack.read(log2alphabetLength);
+		leftLength=(int)stack.read(log2alphabetLength);
 		if (hasBeenExtended||hasBeenStolen) skipBorderSubstring(stack);
 		else readBorderSubstring(stack);
 	}
@@ -102,6 +135,7 @@ public class BorderSubstring extends RightMaximalSubstring {
 	protected void readFast2(Stream stack) {
 		super.readFast2(stack);
 		rightLength=(int)stack.read(log2alphabetLength);
+		leftLength=(int)stack.read(log2alphabetLength);
 		skipBorderSubstring(stack);
 	}
 
@@ -109,7 +143,8 @@ public class BorderSubstring extends RightMaximalSubstring {
 	private void skipBorderSubstring(Stream stack) {
 		if (rightLength>0) stack.setPosition(stack.getPosition()+
 											 Utils.log2(rightLength)+
-											 rightLength*log2alphabetLength);
+											 rightLength*log2alphabetLength+
+											 leftLength*log2alphabetLength);
 	}
 
 
@@ -120,8 +155,9 @@ public class BorderSubstring extends RightMaximalSubstring {
 
 
 	private void popBorderSubstring(Stream stack) {
-		long x = rightLength>0?rightLength*log2alphabetLength+Utils.log2(rightLength):0;
+		long x = rightLength>0?rightLength*log2alphabetLength+leftLength*log2alphabetLength+Utils.log2(rightLength):0;
 		stack.pop(x+
+		          log2alphabetLength+
 		          log2alphabetLength);
 	}
 
@@ -146,17 +182,20 @@ public class BorderSubstring extends RightMaximalSubstring {
 		super.init(suffix,firstCharacter,stack,characterStack,pointerStack,buffer);
 		longestBorder=null;
 		rightLength=0;
-		longestBorderCharacter=-1;
+		longestBorderRightCharacter=-1;
+		longestBorderLeftCharacter=-1;
 		if (length==1 || firstCharacter==-1 || rightContext==1) return;  // We don't compute borders for left-extensions that are not right-maximal.
 		int pos = (int)buffer[firstCharacter];
 		if (pos==-1) initFromSuffixWithoutBorder(firstCharacter,suffix,stack,characterStack,pointerStack);
 		else initFromSuffixWithBorder((BorderSubstring)suffix,pos,stack,characterStack,pointerStack);
+		initLeftCharacters(characterStack,pointerStack);
 	}
 
 
 	/**
-	 * Handles the initialization of $v$ when the one-character suffix of $v$ has no
-	 * border preceded by $firstCharacter$. We assume $|v|>1$.
+	 * Initializes the right array of $v$ and the longest border of $v$ when the
+	 * one-character suffix of $v$ has no border preceded by $firstCharacter$.
+	 * We assume $|v|>1$.
 	 */
 	private final void initFromSuffixWithoutBorder(int firstCharacter, Substring suffix, Stream stack, RigidStream characterStack, SimpleStream pointerStack) {
 		int lastCharacter, d;
@@ -165,7 +204,7 @@ public class BorderSubstring extends RightMaximalSubstring {
 		if (length==2) lastCharacter=suffix.firstCharacter;
 		else lastCharacter = (int)(characterStack.getElementAt(0));  // Last character of $v$
 		if (lastCharacter==firstCharacter) {
-			longestBorderCharacter=0;
+			longestBorderRightCharacter=0;
 			rightLength=1;
 			nPointers=MIN_POINTERS+1;
 			if (length==2) {
@@ -189,11 +228,12 @@ public class BorderSubstring extends RightMaximalSubstring {
 
 
 	/**
-	 * Handles the initialization of $v$ when the one-character suffix of $v$ has a border
-	 * preceded by $firstCharacter$. The running time of this procedure is linear on the
-	 * length of the right array of the longest border of $v$, and it does not depend on
-	 * $alphabetLength$: this makes the sum of the initialization times of all
-	 * right-maximal substrings of a text $s$ linear in the length of $s$.
+	 * Initializes the right array of $v$ and the longest border of $v$ when the
+	 * one-character suffix of $v$ has a border preceded by $firstCharacter$.
+	 * The running time of this procedure is linear on the length of the right array of
+	 * the longest border of $v$, and it does not depend on $alphabetLength$: this makes
+	 * the sum of the initialization times of all right-maximal substrings of a text $s$
+	 * linear in the length of $s$.
 	 *
 	 * @param pos position of the first character of $v$ in $suffix.rightCharacters$.
 	 */
@@ -221,30 +261,86 @@ public class BorderSubstring extends RightMaximalSubstring {
 		// Building array $right$
 		if (longestBorder.rightLength==0) {
 			rightLength=1;
-			longestBorderCharacter=0;
+			longestBorderRightCharacter=0;
 			rightCharacters[0]=d;
 			nPointers=MIN_POINTERS+1;
 			stackPointers[MIN_POINTERS]=pointer;
 			return;
 		}
-		longestBorderCharacter=Arrays.binarySearch(longestBorder.rightCharacters,0,longestBorder.rightLength,d);
-		if (longestBorderCharacter>=0) {
+		longestBorderRightCharacter=Arrays.binarySearch(longestBorder.rightCharacters,0,longestBorder.rightLength,d);
+		if (longestBorderRightCharacter>=0) {
 			rightLength=longestBorder.rightLength;
 			System.arraycopy(longestBorder.rightCharacters,0,rightCharacters,0,rightLength);
 			nPointers=MIN_POINTERS+rightLength;
 			System.arraycopy(longestBorder.stackPointers,MIN_POINTERS,stackPointers,MIN_POINTERS,rightLength);
-			stackPointers[MIN_POINTERS+longestBorderCharacter]=pointer;
+			stackPointers[MIN_POINTERS+longestBorderRightCharacter]=pointer;
 		}
 		else {
 			rightLength=longestBorder.rightLength+1;
-			longestBorderCharacter=-longestBorderCharacter-1;
-			System.arraycopy(longestBorder.rightCharacters,0,rightCharacters,0,longestBorderCharacter);
-			rightCharacters[longestBorderCharacter]=d;
-			System.arraycopy(longestBorder.rightCharacters,longestBorderCharacter,rightCharacters,longestBorderCharacter+1,rightLength-longestBorderCharacter-1);
+			longestBorderRightCharacter=-longestBorderRightCharacter-1;
+			System.arraycopy(longestBorder.rightCharacters,0,rightCharacters,0,longestBorderRightCharacter);
+			rightCharacters[longestBorderRightCharacter]=d;
+			System.arraycopy(longestBorder.rightCharacters,longestBorderRightCharacter,rightCharacters,longestBorderRightCharacter+1,rightLength-longestBorderRightCharacter-1);
 			nPointers=MIN_POINTERS+rightLength;
-			System.arraycopy(longestBorder.stackPointers,MIN_POINTERS,stackPointers,MIN_POINTERS,longestBorderCharacter);
-			stackPointers[MIN_POINTERS+longestBorderCharacter]=pointer;
-			System.arraycopy(longestBorder.stackPointers,MIN_POINTERS+longestBorderCharacter,stackPointers,MIN_POINTERS+longestBorderCharacter+1,rightLength-longestBorderCharacter-1);
+			System.arraycopy(longestBorder.stackPointers,MIN_POINTERS,stackPointers,MIN_POINTERS,longestBorderRightCharacter);
+			stackPointers[MIN_POINTERS+longestBorderRightCharacter]=pointer;
+			System.arraycopy(longestBorder.stackPointers,MIN_POINTERS+longestBorderRightCharacter,stackPointers,MIN_POINTERS+longestBorderRightCharacter+1,rightLength-longestBorderRightCharacter-1);
+		}
+	}
+
+
+	/**
+	 * Initializes the left array of $v$ from the longest border of $v$.
+	 */
+	private final void initLeftCharacters(RigidStream characterStack, SimpleStream pointerStack) {
+		if (longestBorder==null) {
+			leftLength=0;
+			return;
+		}
+		int d, longestBorderStart, start;
+		long longestBorderLength, pointer, k;
+
+		// Computing preceding character and pointer
+		longestBorderLength=longestBorder.length;
+		if (longestBorderLength==length-1) {
+			d=(int)(characterStack.getElementAt(0));
+			pointer=-1;  // -1 will be converted to $stackPointers[0]$ by $Substring.push$
+		}
+		else {
+			k=length-longestBorderLength-1;
+			d=(int)(characterStack.getElementAt(k));  // Character that follows the longest border of $v$
+			pointer=pointerStack.getElementAt(k);
+		}
+
+		// Building array $left$
+		if (longestBorder.leftLength==0) {
+			leftLength=1;
+			longestBorderLeftCharacter=0;
+			leftCharacters[0]=d;
+			nPointers++;
+			stackPointers[nPointers-1]=pointer;
+			return;
+		}
+		longestBorderLeftCharacter=Arrays.binarySearch(longestBorder.leftCharacters,0,longestBorder.leftLength,d);
+		longestBorderStart=MIN_POINTERS+longestBorder.rightLength;
+		start=MIN_POINTERS+rightLength;
+		if (longestBorderLeftCharacter>=0) {
+			leftLength=longestBorder.leftLength;
+			System.arraycopy(longestBorder.leftCharacters,0,leftCharacters,0,leftLength);
+			nPointers+=leftLength;
+			System.arraycopy(longestBorder.stackPointers,longestBorderStart,stackPointers,start,leftLength);
+			stackPointers[start+longestBorderLeftCharacter]=pointer;
+		}
+		else {
+			leftLength=longestBorder.leftLength+1;
+			longestBorderLeftCharacter=-longestBorderLeftCharacter-1;
+			System.arraycopy(longestBorder.leftCharacters,0,leftCharacters,0,longestBorderLeftCharacter);
+			leftCharacters[longestBorderLeftCharacter]=d;
+			System.arraycopy(longestBorder.leftCharacters,longestBorderLeftCharacter,leftCharacters,longestBorderLeftCharacter+1,leftLength-longestBorderLeftCharacter-1);
+			nPointers+=leftLength;
+			System.arraycopy(longestBorder.stackPointers,longestBorderStart,stackPointers,start,longestBorderLeftCharacter);
+			stackPointers[start+longestBorderLeftCharacter]=pointer;
+			System.arraycopy(longestBorder.stackPointers,longestBorderStart+longestBorderLeftCharacter,stackPointers,start+longestBorderLeftCharacter+1,leftLength-longestBorderLeftCharacter-1);
 		}
 	}
 
