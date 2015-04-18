@@ -39,6 +39,8 @@ public class Constants {
 	 * Balances between space and time.
 	 */
 	public int LONGS_PER_REGION = 2;
+	public int LONGS_PER_REGION_CHARACTERSTACK = LONGS_PER_REGION;  // Must be tuned experimentally
+	public int LONGS_PER_REGION_POINTERSTACK = LONGS_PER_REGION;  // Must be tuned experimentally
 
 	/**
 	 * Number of work-stealing attempts performed by each thread before terminating.

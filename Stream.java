@@ -44,10 +44,7 @@ public class Stream {
 	}
 
 
-	/**
-	 * @return the number of bits in the stream
-	 */
-	public final long length() {
+	public final long nBits() {
 		return nBits;
 	}
 
@@ -193,8 +190,14 @@ public class Stream {
 		regions[pointerRegion][pointerCell]|=Utils.oneSelectors1[64-pointerOffset-1];
 	}
 
+}
 
-	/**
+
+
+
+// ----------------------------------- Appendix ------------------------------------------
+
+/**
 	 * Assumes that the stream is the concatenation of $nBits$-bit, distinct integers, in
 	 * increasing order. After the search, the pointer is restored to its initial state.
 	 * Remark: assumes that $toIndex>=fromIndex$. No explicit check is performed.
@@ -206,7 +209,7 @@ public class Stream {
 	 * @return the position of $key$ in the stream, or -1 if $key$ does not occur in the
 	 * stream. This is not the rank of $key$ in the sequence of integers.
 	 */
-	public final long binarySearch(long fromIndex, long toIndex, long key, int nBits, int log2NBits) {
+/*	public final long binarySearch(long fromIndex, long toIndex, long key, int nBits, int log2NBits) {
 		long a, z, m, value;
 		long backupPosition = getPosition();
 
@@ -229,14 +232,7 @@ public class Stream {
 		if (a==z) return a<<log2NBits;
 		else return -1;
 	}
-
-
-}
-
-
-
-
-// ----------------------------------- Appendix ------------------------------------------
+*/
 
 	/**
 	 * Advances the pointer by $n \leq 64$ bits.

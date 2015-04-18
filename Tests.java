@@ -93,6 +93,18 @@ public class Tests {
 			System.exit(1);
 		}
 		else System.out.println("Stream \t\t\t [   OK   ]");
+		// Testing $RigidStream$
+		if (!test_rigidStream()) {
+			System.err.println("RigidStream \t\t\t [ FAILED ]");
+			System.exit(1);
+		}
+		else System.out.println("RigidStream \t\t\t [   OK   ]");
+		// Testing $SimpleStream$
+		if (!test_simpleStream()) {
+			System.err.println("SimpleStream \t\t\t [ FAILED ]");
+			System.exit(1);
+		}
+		else System.out.println("SimpleStream \t\t\t [   OK   ]");
 
 		// Testing $Substring$
 		if (!test_substring()) {
@@ -100,6 +112,12 @@ public class Tests {
 			System.exit(1);
 		}
 		else System.out.println("Substring \t\t\t [   OK   ]");
+		// Testing $BorderSubstring$
+		if (!test_borderSubstring()) {
+			System.err.println("BorderSubstring \t\t\t [ FAILED ]");
+			System.exit(1);
+		}
+		else System.out.println("BorderSubstring \t\t\t [   OK   ]");
 
 		// Testing $SubstringIterator$
 		if (!test_substringIterator()) {
@@ -113,31 +131,153 @@ public class Tests {
 			System.exit(1);
 		}
 		else System.out.println("RightMaximalSubstring \t\t\t [   OK   ]");
-
-		// Testing $BorderSubstring$
-		if (!test_borderSubstring()) {
-			System.err.println("BorderSubstring \t\t\t [ FAILED ]");
-			System.exit(1);
-		}
-		else System.out.println("BorderSubstring \t\t\t [   OK   ]");
-*/
-		// Testing $BorderSubstring$
+*/		// Testing $BorderSubstring$
 		if (!test_rightMaximalSubstringsWithBorder()) {
 			System.err.println("BorderSubstring \t\t\t [ FAILED ]");
 			System.exit(1);
 		}
 		else System.out.println("BorderSubstring \t\t\t [   OK   ]");
+
+
+
+
 	}
 
 
 
 
+	private static final boolean test_simpleStream() {
+		final int N_ELEMENTS = 10000;
+		final int N_ITERATIONS = 100;
+		final int MAX_INT = 100;
+		int i, j, k, t, r, b, position, region, cell, offset;
+		int[] numbers = new int[N_ELEMENTS];
+		long nElements, read;
+		Constants constants = new Constants();
+		SimpleStream stream = new SimpleStream(constants.LONGS_PER_REGION);
+		XorShiftStarRandom random = new XorShiftStarRandom();
+
+		for (t=0; t<N_ITERATIONS; t++) {
+			// Testing $push$
+			stream.clear(true);
+			nElements=0;
+			for (i=0; i<N_ELEMENTS; i++) {
+				r=random.nextInt(MAX_INT);
+				numbers[i]=r;
+				stream.push(r);
+				nElements++;
+			}
+			if (stream.nElements()!=nElements) {
+				System.err.println("Error in Stream.push: pushed "+stream.nElements()+" elements rather than "+nElements);
+				return false;
+			}
+			for (i=0; i<N_ELEMENTS; i++) {
+				read=stream.getElementAt(i);
+				if (read!=numbers[i]) {
+					System.err.println("Error in Stream.push: pushed "+read+" rather than "+numbers[i]+" at position "+i);
+					return false;
+				}
+			}
+
+			// Testing $pop$
+			nElements=stream.nElements();
+			j=random.nextInt(N_ELEMENTS);
+			for (i=N_ELEMENTS-1; i>=j; i--) {
+				stream.pop();
+				nElements--;
+			}
+			if (stream.nElements()!=nElements) {
+				System.err.println("Error in Stream.pop: wrong number of elements popped.");
+				return false;
+			}
+			for (i=0; i<j; i++) {
+				read=stream.getElementAt(i);
+				if (read!=numbers[i]) {
+					System.err.println("Error in Stream.read: wrong element popped.");
+					return false;
+				}
+			}
+			for (i=j; i<N_ELEMENTS; i++) stream.push(numbers[i]);  // Pushing popped values back
+
+			// Testing $binarySearch$
+			for (int x=0; x<N_ELEMENTS; x++) numbers[x]=x;
+			stream.clear(true);
+			for (int x=0; x<N_ELEMENTS; x++) stream.push(numbers[x]);
+			for (int x=0; x<N_ELEMENTS/2; x++) {
+				int p = random.nextInt(N_ELEMENTS);
+				int value = numbers[p];
+				long returnedP = stream.binarySearch(0,N_ELEMENTS,value);
+				if (returnedP!=p) {
+					System.err.println("Error in Stream.binarySearch: returnedPosition="+returnedP+" real position="+p);
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
+
+	private static final boolean test_rigidStream() {
+		final int N_ELEMENTS = 1000000;
+		final int N_ITERATIONS = 100;
+		final int MAX_INT = 100;
+		final int bpi = Utils.closestPowerOfTwo(Utils.log2(MAX_INT));
+		int i, j, k, t, r, b, position, region, cell, offset;
+		int[] numbers = new int[N_ELEMENTS];
+		long nBits, read;
+		Constants constants = new Constants();
+		RigidStream stream = new RigidStream(bpi,constants.LONGS_PER_REGION);
+		XorShiftStarRandom random = new XorShiftStarRandom();
+
+		for (t=0; t<N_ITERATIONS; t++) {
+			// Testing $push$
+			stream.clear(true);
+			nBits=0;
+			for (i=0; i<N_ELEMENTS; i++) {
+				r=random.nextInt(MAX_INT);
+				numbers[i]=r;
+				stream.push(r);
+				nBits+=bpi;
+			}
+			if (stream.nBits()!=nBits) {
+				System.err.println("Error in Stream.push: pushed "+stream.nBits()+" bits rather than "+nBits);
+				return false;
+			}
+			for (i=0; i<N_ELEMENTS; i++) {
+				read=stream.getElementAt(i);
+				if (read!=numbers[i]) {
+					System.err.println("Error in Stream.push: pushed "+read+" rather than "+numbers[i]);
+					return false;
+				}
+			}
+
+			// Testing $pop$
+			nBits=stream.nBits();
+			j=random.nextInt(N_ELEMENTS);
+			for (i=N_ELEMENTS-1; i>=j; i--) {
+				stream.pop();
+				nBits-=bpi;
+			}
+			if (stream.nBits()!=nBits) {
+				System.err.println("Error in Stream.pop: wrong number of bits popped.");
+				return false;
+			}
+			for (i=0; i<j; i++) {
+				read=stream.getElementAt(i);
+				if (read!=numbers[i]) {
+					System.err.println("Error in Stream.read: wrong bit sequences popped.");
+					return false;
+				}
+			}
+			for (i=j; i<N_ELEMENTS; i++) stream.push(numbers[i]);  // Pushing popped values back
+		}
+		return true;
+	}
+
+
+
 	private static HashSet<String> iteratorSubstrings;
 	private static HashSet<StringWithBorder> iteratorSubstringsWithBorder;
-
-
-
-
 
 
 	/**
@@ -200,7 +340,7 @@ public class Tests {
 //for (int x=0; x<trueSubstringsArray.length; x++) System.out.println(trueSubstringsArray[x]);
 
 			// Running $SubstringIterator$
-			constants.N_THREADS=1;
+			constants.N_THREADS=2;
 			constants.MAX_MEMORY=10;
 			iteratorSubstringsWithBorder = new HashSet<StringWithBorder>();
 			iterator = new SubstringIterator(string,alphabet,4,new TestBorderSubstring(4,2,STRING_LENGTH+1,Utils.log2(STRING_LENGTH+1),stringString),constants);
@@ -264,6 +404,7 @@ public class Tests {
 
 	private static class TestBorderSubstring extends BorderSubstring {
 		private String text;
+		private String str;
 
 		public TestBorderSubstring(int alphabetLength, int log2alphabetLength, long bwtLength, int log2bwtLength, String text) {
 			super(alphabetLength,log2alphabetLength,bwtLength,log2bwtLength);
@@ -273,8 +414,23 @@ public class Tests {
 		protected Substring getInstance() {
 			return new TestBorderSubstring(alphabetLength,log2alphabetLength,bwtLength,log2bwtLength,text);
 		}
-
-		protected void visited(Stream stack) {
+/*
+		protected void push(Stream stack) {
+			super.push(stack);
+			if (str!=null && str.equals("00")) {
+				System.out.println(Thread.currentThread()+"> pushed "+str);
+				BorderSubstring mine = (BorderSubstring)getInstance();
+				long backupPointer = stack.getPosition();
+				stack.setPosition(0);
+				while (stack.getPosition()<=stackPointers[0]) {
+					mine.read(stack);
+					System.out.println("("+mine.stackPointers[0]+"|"+mine.hasBeenExtended+"|"+mine.hasBeenStolen+"|"+mine.firstCharacter+"|"+mine.length+"|"+mine.rightLength+"||"+mine.stackPointers[0]);
+				}
+				stack.setPosition(backupPointer);
+			}
+		}
+*/
+		protected void visited(Stream stack, RigidStream characterStack, SimpleStream pointerStack) {
 			if (length>bwtLength) {
 				System.err.println("ERROR: GENERATED A SUBSTRING LONGER THAN THE TEXT PLUS ONE: (length="+length+")");
 				System.err.println("text: "+text);
@@ -283,9 +439,8 @@ public class Tests {
 
 			// Reconstructing the sequence
 			boolean startsWithSharp;
-			String str;
 			IntArray sequence = new IntArray((int)length,log2alphabetLength,false);
-			startsWithSharp=Substring.getSequence(this,stack,sequence);
+			startsWithSharp=getSequence(characterStack,sequence);
 			if (startsWithSharp) str="#";
 			else str="";
 			for (int i=0; i<(startsWithSharp?length-1:length); i++) str+=""+sequence.getElementAt(i);
@@ -295,6 +450,73 @@ for (int x=0; x<=alphabetLength; x++) {
 }
 System.out.println();
 */
+
+
+/*
+if (str.equals("0")) {
+	synchronized(iteratorSubstringsWithBorder) {
+		System.out.println(Thread.currentThread()+">0----------------howWasInit="+howWasInit);
+		System.out.println("rightCharacters:");
+		for (int x=0; x<rightLength; x++) {
+			System.out.println("rightCharacters["+x+"]="+rightCharacters[x]+" stackPointer="+stackPointers[MIN_POINTERS+x]);
+		}
+		System.out.println("longestBorder="+(longestBorder==null?"null":longestBorder.stackPointers[0])+" length="+(longestBorder==null?"":longestBorder.length));
+		System.out.println("stacks:");
+		for (int x=0; x<characterStack.nElements(); x++) System.out.print("("+characterStack.getElementAt(x)+","+pointerStack.getElementAt(x)+") ");
+		System.out.println();
+	}
+}
+
+
+
+
+if (str.equals("00")) {
+	synchronized(iteratorSubstringsWithBorder) {
+		System.out.println(Thread.currentThread()+">00----------------howWasInit="+howWasInit);
+		System.out.println("rightCharacters:");
+		for (int x=0; x<rightLength; x++) {
+			System.out.println("rightCharacters["+x+"]="+rightCharacters[x]+" stackPointer="+stackPointers[MIN_POINTERS+x]);
+		}
+		System.out.println("longestBorder="+(longestBorder==null?"null":longestBorder.stackPointers[0])+" length="+(longestBorder==null?"":longestBorder.length));
+		System.out.println("stacks:");
+		for (int x=0; x<characterStack.nElements(); x++) System.out.print("("+characterStack.getElementAt(x)+","+pointerStack.getElementAt(x)+") ");
+		System.out.println();
+		BorderSubstring mine = (BorderSubstring)getInstance();
+		long backupPointer = stack.getPosition();
+		stack.setPosition(0);
+		while (stack.getPosition()<228) {
+			mine.read(stack);
+			System.out.println("("+mine.stackPointers[0]+"|"+mine.hasBeenExtended+"|"+mine.hasBeenStolen+"|"+mine.firstCharacter+"|"+mine.length+"|"+mine.rightLength+"||"+mine.stackPointers[MIN_POINTERS]);
+		}
+		stack.setPosition(backupPointer);
+	}
+}
+
+
+
+if (str.equals("000")) {
+	synchronized(iteratorSubstringsWithBorder) {
+		System.out.println(Thread.currentThread()+">000----------------howWasInit="+howWasInit+" lbp="+lbp+" suffix="+suff+" rl="+rl);
+		System.out.println("rightCharacters:");
+		for (int x=0; x<rightLength; x++) {
+			System.out.println("rightCharacters["+x+"]="+rightCharacters[x]+" stackPointer="+stackPointers[MIN_POINTERS+x]);
+		}
+		System.out.println("longestBorder="+(longestBorder==null?"null":longestBorder.stackPointers[0])+" length="+(longestBorder==null?"":longestBorder.length));
+		System.out.println("stacks:");
+		for (int x=0; x<characterStack.nElements(); x++) System.out.print("("+characterStack.getElementAt(x)+","+pointerStack.getElementAt(x)+") ");
+		System.out.println();
+		BorderSubstring mine = (BorderSubstring)getInstance();
+		long backupPointer = stack.getPosition();
+		stack.setPosition(0);
+		while (stack.getPosition()<=228) {
+			mine.read(stack);
+			System.out.println("("+mine.stackPointers[0]+"|"+mine.hasBeenExtended+"|"+mine.hasBeenStolen+"|"+mine.firstCharacter+"|"+mine.length+"|"+mine.rightLength+"||"+mine.stackPointers[MIN_POINTERS]);
+		}
+		stack.setPosition(backupPointer);
+	}
+}
+*/
+
 			// Adding $\epsilon$
 			if (length==0) {
 				synchronized(iteratorSubstringsWithBorder) { iteratorSubstringsWithBorder.add(new StringWithBorder("",-1)); }
@@ -308,7 +530,7 @@ System.out.println();
 					System.err.println("text: "+text);
 					System.exit(1);
 				}
-				synchronized(iteratorSubstringsWithBorder) { iteratorSubstringsWithBorder.add(new StringWithBorder(str,longestBorderLength)); }
+				synchronized(iteratorSubstringsWithBorder) { iteratorSubstringsWithBorder.add(new StringWithBorder(str,longestBorder==null?0:longestBorder.length)); }
 			}
 		}
 	}
@@ -348,7 +570,6 @@ System.out.println();
 
 
 	private static final boolean test_borderSubstring() {
-		final int TEXT_LENGTH = 1000;
 		final int N_ELEMENTS = 1000;
 		final int N_ITERATIONS = 100;
 		final int N_TESTS = 100;
@@ -358,12 +579,15 @@ System.out.println();
 		for (i=0; i<=4; i++) extensionBuffer[i]=-1;
 		BorderSubstring[] substrings = new BorderSubstring[N_ELEMENTS];
 		Stream stack = new Stream(512);
-		BorderSubstring w = new BorderSubstring(4,2,TEXT_LENGTH,Utils.log2(TEXT_LENGTH));
+		RigidStream characterStack = new RigidStream(2,2);
+		SimpleStream pointerStack = new SimpleStream(2);
+		BorderSubstring w = new BorderSubstring(4,2,N_ELEMENTS,Utils.log2(N_ELEMENTS));
 		XorShiftStarRandom random = new XorShiftStarRandom();
 
 		for (t=0; t<N_ITERATIONS; t++) {
 			// Pushing random $BorderSubstring$ objects on the stack
 			stack.clear(true); stack.setPosition(0L);
+			characterStack.clear(true); pointerStack.clear(true);
 			substrings[0] = (BorderSubstring)(w.getEpsilon(new long[4]));  // Artificial bottom of the stack
 			for (i=0; i<substrings[0].nIntervals; i++) {
 				substrings[0].bwtIntervals[i][0]=0;
@@ -380,16 +604,15 @@ System.out.println();
 			previous=substrings[1].stackPointers[0];
 			for (i=2; i<N_ELEMENTS; i++) {
 				substrings[i] = (BorderSubstring)(substrings[0].getInstance());
-				substrings[i].bwtIntervals[0][0]=random.nextInt(TEXT_LENGTH);
-				do { substrings[i].bwtIntervals[0][1]=random.nextInt(TEXT_LENGTH); }
+				substrings[i].bwtIntervals[0][0]=random.nextInt(N_ELEMENTS);
+				do { substrings[i].bwtIntervals[0][1]=random.nextInt(N_ELEMENTS); }
 				while (substrings[i].bwtIntervals[0][1]<substrings[i].bwtIntervals[0][0]);
 				substrings[i].stackPointers[1]=previous;
 				substrings[i].hasBeenExtended=random.nextBoolean();
 				for (j=i-1; j>=0; j--) {
 					if (substrings[j].hasBeenExtended) {
-						stack.setPosition(substrings[j].stackPointers[0]);
 						substrings[j].fillBuffer(extensionBuffer);
-						substrings[i].init(substrings[j],random.nextInt(4),stack,extensionBuffer);
+						substrings[i].init(substrings[j],random.nextInt(4),stack,characterStack,pointerStack,extensionBuffer);
 						substrings[j].emptyBuffer(extensionBuffer);
 						break;
 					}
@@ -512,7 +735,7 @@ System.out.println();
 //for (int x=0; x<trueSubstringsArray.length; x++) System.out.println(trueSubstringsArray[x]);
 
 			// Running $SubstringIterator$
-			constants.N_THREADS=1;
+			constants.N_THREADS=2;
 			constants.MAX_MEMORY=10;
 			iteratorSubstrings = new HashSet<String>();
 			iterator = new SubstringIterator(string,alphabet,4,new TestRightMaximalSubstring(4,2,STRING_LENGTH+1,Utils.log2(STRING_LENGTH+1),stringString),constants);
@@ -562,7 +785,7 @@ System.out.println();
 			return new TestRightMaximalSubstring(alphabetLength,log2alphabetLength,bwtLength,log2bwtLength,text);
 		}
 
-		protected void visited(Stream stack) {
+		protected void visited(Stream stack, RigidStream characterStack, SimpleStream pointerStack) {
 			if (length>bwtLength) {
 				System.err.println("ERROR: GENERATED A SUBSTRING LONGER THAN THE TEXT PLUS ONE: (length="+length+")");
 				System.err.println("text: "+text);
@@ -573,7 +796,7 @@ System.out.println();
 			boolean startsWithSharp;
 			String str;
 			IntArray sequence = new IntArray((int)length,log2alphabetLength,false);
-			startsWithSharp=Substring.getSequence(this,stack,sequence);
+			startsWithSharp=getSequence(characterStack,sequence);
 			if (startsWithSharp) str="#";
 			else str="";
 			for (int i=0; i<(startsWithSharp?length-1:length); i++) str+=""+sequence.getElementAt(i);
@@ -683,7 +906,7 @@ System.out.println();
 			}
 */
 			// Running $SubstringIterator$ with multiple threads
-			constants.N_THREADS=1;
+			constants.N_THREADS=2;
 			constants.MAX_MEMORY=10;
 			iteratorSubstrings = new HashSet<String>();
 			iterator = new SubstringIterator(string,alphabet,4,new TestSubstring(4,2,STRING_LENGTH+1,Utils.log2(STRING_LENGTH+1),stringString),constants);
@@ -733,7 +956,7 @@ System.out.println();
 			return new TestSubstring(alphabetLength,log2alphabetLength,bwtLength,log2bwtLength,text);
 		}
 
-		protected void visited(Stream stack) {
+		protected void visited(Stream stack, RigidStream characterStack, SimpleStream pointerStack) {
 			if (length>bwtLength) {
 				System.err.println("ERROR: GENERATED A SUBSTRING LONGER THAN THE TEXT PLUS ONE: (length="+length+")");
 				System.err.println("text: "+text);
@@ -743,42 +966,46 @@ System.out.println();
 			boolean startsWithSharp;
 			String str;
 			IntArray sequence = new IntArray((int)length,log2alphabetLength,false);
-			startsWithSharp=Substring.getSequence(this,stack,sequence);
+			startsWithSharp=getSequence(characterStack,sequence);
 			if (startsWithSharp) str="#";
 			else str="";
 			for (int i=0; i<(startsWithSharp?length-1:length); i++) str+=""+sequence.getElementAt(i);
+//System.out.println("TestSubstring> outputting sequence "+str);
 			synchronized(iteratorSubstrings) { iteratorSubstrings.add(str); }
 		}
 	}
 
 
 	private static final boolean test_substring() {
-		final int TEXT_LENGTH = 1000;
 		final int N_ELEMENTS = 10000;
 		final int N_ITERATIONS = 100;
-		final int N_TESTS = 100;
+		final int N_TESTS = 1000;
 		int i, j, t, index;
 		long previous;
 		long[] extensionBuffer = new long[4+1];
 		for (i=0; i<=4; i++) extensionBuffer[i]=-1;
 		Substring[] substrings = new Substring[N_ELEMENTS];
 		Stream stack = new Stream(512);
-		Substring w = new Substring(4,2,TEXT_LENGTH,Utils.log2(TEXT_LENGTH));
+		RigidStream characterStack = new RigidStream(2,2);
+		SimpleStream pointerStack = new SimpleStream(2);
+		Substring w = new Substring(4,2,N_ELEMENTS,Utils.log2(N_ELEMENTS));
 		XorShiftStarRandom random = new XorShiftStarRandom();
 
 		for (t=0; t<N_ITERATIONS; t++) {
 			// Pushing random $Substring$ objects on the stack
 			stack.clear(true); stack.setPosition(0L);
+			characterStack.clear(true); pointerStack.clear(true);
 			substrings[0] = w.getEpsilon(new long[0]);
 			substrings[0].push(stack);
 			previous=0L;
 			for (i=1; i<N_ELEMENTS; i++) {
-				substrings[i] = new Substring(4,2,TEXT_LENGTH,Utils.log2(TEXT_LENGTH));
-				substrings[i].bwtIntervals[0][0]=random.nextInt(TEXT_LENGTH);
-				do { substrings[i].bwtIntervals[0][1]=random.nextInt(TEXT_LENGTH); }
+				substrings[i] = new Substring(4,2,N_ELEMENTS,Utils.log2(N_ELEMENTS));
+				substrings[i].bwtIntervals[0][0]=random.nextInt(N_ELEMENTS);
+				do { substrings[i].bwtIntervals[0][1]=random.nextInt(N_ELEMENTS); }
 				while (substrings[i].bwtIntervals[0][1]<substrings[i].bwtIntervals[0][0]);
 				substrings[i].stackPointers[1]=previous;
-				substrings[i].init(substrings[random.nextInt(i)],random.nextInt(4),stack,extensionBuffer);
+				substrings[i].init(substrings[random.nextInt(i)],random.nextInt(4),stack,characterStack,pointerStack,extensionBuffer);
+				substrings[i].hasBeenExtended=random.nextBoolean();
 				substrings[i].push(stack);
 				previous=substrings[i].stackPointers[0];
 			}
@@ -854,8 +1081,8 @@ System.out.println();
 				stream.push(r,Utils.bitsToEncode(r));
 				nBits+=Utils.bitsToEncode(r);
 			}
-			if (stream.length()!=nBits) {
-				System.err.println("Error in Stream.push: pushed "+stream.length()+" bits rather than "+nBits);
+			if (stream.nBits()!=nBits) {
+				System.err.println("Error in Stream.push: pushed "+stream.nBits()+" bits rather than "+nBits);
 				return false;
 			}
 			stream.setPosition(0L);
@@ -868,13 +1095,13 @@ System.out.println();
 			}
 
 			// Testing $pop$
-			nBits=stream.length();
+			nBits=stream.nBits();
 			j=random.nextInt(N_ELEMENTS);
 			for (i=N_ELEMENTS-1; i>=j; i--) {
 				stream.pop(Utils.bitsToEncode(numbers[i]));
 				nBits-=Utils.bitsToEncode(numbers[i]);
 			}
-			if (stream.length()!=nBits) {
+			if (stream.nBits()!=nBits) {
 				System.err.println("Error in Stream.pop: wrong number of bits popped.");
 				return false;
 			}
@@ -905,7 +1132,7 @@ System.out.println();
 
 			// Testing $setBit$
 			position=(int)stream.getPosition();
-			j=random.nextInt((int)stream.length());
+			j=random.nextInt((int)stream.nBits());
 			stream.setPosition(j);
 			region=stream.pointerRegion;
 			cell=stream.pointerCell;
@@ -919,7 +1146,7 @@ System.out.println();
 				return false;
 			}
 
-			// Testing $binarySearch$ with 64-bit numbers
+			/*// Testing $binarySearch$ with 64-bit numbers
 			for (int x=0; x<N_ELEMENTS; x++) numbers[x]=x;
 			stream.clear(true);
 			for (int x=0; x<N_ELEMENTS; x++) stream.push(numbers[x],64);
@@ -931,7 +1158,7 @@ System.out.println();
 					System.err.println("Error in Stream.binarySearch: returnedPosition="+(returnedP/64)+" real position="+p);
 					return false;
 				}
-			}
+			}*/
 
 			/*System.out.print("Testing $skip$... ");
 			k=(int)(Math.random()*N_ELEMENTS/4);

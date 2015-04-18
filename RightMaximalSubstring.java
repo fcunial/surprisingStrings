@@ -31,7 +31,7 @@ public class RightMaximalSubstring extends Substring {
 	}
 
 
-	protected static Substring getInstance(int alphabetLength, int log2alphabetLength, long bwtLength, int log2bwtLength) {
+	protected Substring getInstance(int alphabetLength, int log2alphabetLength, long bwtLength, int log2bwtLength) {
 		return new RightMaximalSubstring(alphabetLength,log2alphabetLength,bwtLength,log2bwtLength);
 	}
 
@@ -66,10 +66,9 @@ public class RightMaximalSubstring extends Substring {
 	}
 
 
-	protected void init(Substring suffix, int firstCharacter, Stream stack, long[] buffer) {
-		super.init(suffix,firstCharacter,stack,buffer);
+	protected void init(Substring suffix, int firstCharacter, Stream stack, RigidStream characterStack, SimpleStream pointerStack, long[] buffer) {
+		super.init(suffix,firstCharacter,stack,characterStack,pointerStack,buffer);
 		computeRightContext();
-//System.out.println("nIntervals="+nIntervals+" rightContext="+rightContext);
 	}
 
 

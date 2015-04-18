@@ -1,8 +1,9 @@
 import java.util.Arrays;
 
 /**
- * A right-maximal substring that can compute border information from its suffixes. See
- * \cite{apostolico2000efficient} for algorithms.
+ * A right-maximal substring that computes its longest border from its suffix. See
+ * \cite{apostolico2000efficient} for algorithms. This class provides subclasses with a
+ * $Substring$ object that represents its longest border.
  */
 public class BorderSubstring extends RightMaximalSubstring {
 	/**
@@ -16,10 +17,10 @@ public class BorderSubstring extends RightMaximalSubstring {
 	protected int rightLength;  // Number of elements in $right_v$
 
 	/**
-	 * Information about the longest border $y$: length, and the index in $rightCharacters$
-	 * of the character $d$ such that $v=xdy$, where $x$ is a string.
+	 * The longest border $y$ of $v$, and the index in $rightCharacters$ of the character
+	 * $d$ such that $v=xdy$, where $x$ is a string.
 	 */
-	protected long longestBorderLength;
+	protected BorderSubstring longestBorder;
 	protected int longestBorderCharacter;
 
 
@@ -125,6 +126,13 @@ public class BorderSubstring extends RightMaximalSubstring {
 	}
 
 
+
+/*                       ______               _
+                         | ___ \             | |
+                         | |_/ / ___  _ __ __| | ___ _ __ ___
+                         | ___ \/ _ \| '__/ _` |/ _ \ '__/ __|
+                         | |_/ / (_) | | | (_| |  __/ |  \__ \
+                         \____/ \___/|_|  \__,_|\___|_|  |___/                          */
 	/**
 	 * This procedure is IO-bound: it just deserializes a region of $stack$ that is very
 	 * close to the bottom, and it copies arrays.
@@ -134,53 +142,49 @@ public class BorderSubstring extends RightMaximalSubstring {
 	 * Otherwise, we should create a software cache of frequently used $BorderSubstring$
 	 * objects.
 	 */
-	protected void init(Substring suffix, int firstCharacter, Stream stack, long[] buffer) {
-		super.init(suffix,firstCharacter,stack,buffer);
-		longestBorderLength=0;
+	protected void init(Substring suffix, int firstCharacter, Stream stack, RigidStream characterStack, SimpleStream pointerStack, long[] buffer) {
+		super.init(suffix,firstCharacter,stack,characterStack,pointerStack,buffer);
+		longestBorder=null;
 		rightLength=0;
 		longestBorderCharacter=-1;
 		if (length==1 || firstCharacter==-1 || rightContext==1) return;  // We don't compute borders for left-extensions that are not right-maximal.
 		int pos = (int)buffer[firstCharacter];
-		if (pos==-1) initFromSuffixWithoutBorder(firstCharacter,suffix,stack);
-		else initFromSuffixWithBorder((BorderSubstring)suffix,pos,stack);
+		if (pos==-1) initFromSuffixWithoutBorder(firstCharacter,suffix,stack,characterStack,pointerStack);
+		else initFromSuffixWithBorder((BorderSubstring)suffix,pos,stack,characterStack,pointerStack);
 	}
 
 
 	/**
 	 * Handles the initialization of $v$ when the one-character suffix of $v$ has no
-	 * border preceded by $firstCharacter$.
+	 * border preceded by $firstCharacter$. We assume $|v|>1$.
 	 */
-	protected final void initFromSuffixWithoutBorder(int firstCharacter, Substring suffix, Stream stack) {
+	private final void initFromSuffixWithoutBorder(int firstCharacter, Substring suffix, Stream stack, RigidStream characterStack, SimpleStream pointerStack) {
 		int lastCharacter, d;
 		long pointer, backupPointer;
-		Substring tmpString = getInstance();
 
-		backupPointer=stack.getPosition();
-		stack.setPosition(0);
-		tmpString.readFast2(stack);  // Artificial bottom of the stack
-		tmpString.readFast2(stack);  // $\epsilon$
-		do { tmpString.readFast2(stack); }
-		while (!tmpString.hasBeenExtended && tmpString.stackPointers[0]!=suffix.stackPointers[0]);
-		lastCharacter=tmpString.firstCharacter;  // Last character of $v$
+		if (length==2) lastCharacter=suffix.firstCharacter;
+		else lastCharacter = (int)(characterStack.getElementAt(0));  // Last character of $v$
 		if (lastCharacter==firstCharacter) {
-			longestBorderLength=1;
 			longestBorderCharacter=0;
 			rightLength=1;
 			nPointers=MIN_POINTERS+1;
-			if (tmpString.stackPointers[0]==suffix.stackPointers[0]) {
+			if (length==2) {
+				longestBorder=(BorderSubstring)suffix;
 				d=firstCharacter;
 				pointer=-1;  // -1 will be converted to $stackPointers[0]$ by $Substring.push$
 			}
 			else {
-				do { tmpString.readFast2(stack); }
-				while (!tmpString.hasBeenExtended && tmpString.stackPointers[0]!=suffix.stackPointers[0]);
-				d=tmpString.firstCharacter;  // Character that precedes the longest border of $v$
-				pointer=tmpString.stackPointers[0];
+				longestBorder=(BorderSubstring)getInstance();
+				backupPointer=stack.getPosition();
+				stack.setPosition(pointerStack.getElementAt(0));
+				longestBorder.read(stack);
+				stack.setPosition(backupPointer);
+				d=(int)(characterStack.getElementAt(1));  // Character that precedes the longest border of $v$
+				pointer=pointerStack.getElementAt(1);
 			}
 			rightCharacters[0]=d;
 			stackPointers[MIN_POINTERS]=pointer;
 		}
-		stack.setPosition(backupPointer);
 	}
 
 
@@ -193,26 +197,24 @@ public class BorderSubstring extends RightMaximalSubstring {
 	 *
 	 * @param pos position of the first character of $v$ in $suffix.rightCharacters$.
 	 */
-	protected final void initFromSuffixWithBorder(BorderSubstring suffix, int pos, Stream stack) {
+	private final void initFromSuffixWithBorder(BorderSubstring suffix, int pos, Stream stack, RigidStream characterStack, SimpleStream pointerStack) {
 		int i, d, start;
-		long pointer, backupPointer;
-		BorderSubstring longestBorder = (BorderSubstring)getInstance();
-		Substring tmpString = getInstance();
+		long pointer, backupPointer, longestBorderPointer, longestBorderLength;
 
 		// Loading longest border and preceding character
 		backupPointer=stack.getPosition();
-		stack.setPosition(suffix.stackPointers[MIN_POINTERS+pos]);
+		longestBorder=(BorderSubstring)getInstance();
+		longestBorderPointer=suffix.stackPointers[MIN_POINTERS+pos];
+		stack.setPosition(longestBorderPointer);
 		longestBorder.read(stack);
 		longestBorderLength=longestBorder.length;
-		if (longestBorder.stackPointers[0]==suffix.stackPointers[0]) {
+		if (longestBorderLength==length-1) {
 			d=firstCharacter;
 			pointer=-1;  // -1 will be converted to $stackPointers[0]$ by $Substring.push$
 		}
 		else {
-			do { tmpString.readFast2(stack); }
-			while (!tmpString.hasBeenExtended && tmpString.stackPointers[0]!=suffix.stackPointers[0]);
-			d=tmpString.firstCharacter;  // Character that precedes the longest border of $v$
-			pointer=tmpString.stackPointers[0];
+			d=(int)(characterStack.getElementAt(longestBorderLength));  // Character that precedes the longest border of $v$
+			pointer=pointerStack.getElementAt(longestBorderLength);
 		}
 		stack.setPosition(backupPointer);
 

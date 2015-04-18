@@ -131,7 +131,7 @@ blockSize=2;
 	 * the left extensions of $w$. We assume $buffer[i]=-1$ for all $i$. The procedure
 	 * returns $buffer$ to its input state before terminating.
 	 */
-	private final void extendLeft(Stream stack, Substring w, Substring[] leftExtensions, Position[] positions, long[][] multirankStack, long[][] multirankOutput, long[] multirankOnes, int maxStringLengthToReport, long[] out, long[] extensionBuffer) {
+	private final void extendLeft(Stream stack, RigidStream characterStack, SimpleStream pointerStack, Substring w, Substring[] leftExtensions, Position[] positions, long[][] multirankStack, long[][] multirankOutput, long[] multirankOnes, int maxStringLengthToReport, long[] out, long[] extensionBuffer) {
 		final boolean isShort;
 		boolean pushed;
 		int i, j, c, p, windowFirst, windowSize, block, previousBlock, nPositions;
@@ -144,12 +144,25 @@ blockSize=2;
 		while (w.hasBeenExtended || w.hasBeenStolen) {
 			previous=w.stackPointers[1];
 			w.pop(stack);
-			stack.setPosition(previous);
+			if (w.hasBeenExtended) {
+				characterStack.pop();
+				pointerStack.pop();
+			}
 			out[0]--;
+			stack.setPosition(previous);
 			if (previous==0) return;
 			w.readFast(stack);
 		}
 
+
+/*System.out.println("other stacks after reading/popping:");
+for (int x=0; x<characterStack.size(); x++) System.out.print(characterStack.getElementAt(x)+"|");
+System.out.println();
+for (int x=0; x<pointerStack.length(); x++) System.out.print(pointerStack.getElementAt(x)+"|");
+System.out.println();
+
+System.out.println("1> w.firstCharacter="+w.firstCharacter+" w.length="+w.length);
+*/
 		// Putting the positions of $w.bwtIntervals$ in block order, and sequentially
 		// inside each block. Since this iterator is generic, we do not assume the
 		// positions in $w.bwtIntervals$ to be already sorted.
@@ -204,15 +217,21 @@ blockSize=2;
 		}
 
 		// Signalling to the left-extensions of $w$, and pushing them onto $stack$.
+//System.out.println("2> w.firstCharacter="+w.firstCharacter+" w.length="+w.length);
 		isShort=w.length+1<=maxStringLengthToReport;
 		extension=null; pushed=false;
 		w.fillBuffer(extensionBuffer);
 		previous=w.stackPointers[0];
+		if (w.length>0) {
+//System.out.println("3> w.firstCharacter="+w.firstCharacter);
+			characterStack.push(w.firstCharacter);  // Needed for calls to $Substring.getSequence()$ inside $Substring.visited()$ to be successful
+			pointerStack.push(w.stackPointers[0]);
+		}
 		for (c=0; c<alphabetLength+1; c++) {
 			extension=leftExtensions[c];
 			if (extension.occurs()) {
-				extension.init(w,c-1,stack,extensionBuffer);
-				extension.visited(stack);
+				extension.init(w,c-1,stack,characterStack,pointerStack,extensionBuffer);
+				extension.visited(stack,characterStack,pointerStack);
 				if (extension.shouldBeExtendedLeft()) {
 					extension.stackPointers[1]=previous;
 					extension.push(stack);
@@ -224,10 +243,16 @@ blockSize=2;
 		}
 		w.emptyBuffer(extensionBuffer);
 		w.markAsExtended(stack);
-//System.out.println("done extending ("+w.firstCharacter+","+w.stackPointers[0]+") length="+w.length);
 		out[1]--;
 		if (w.length<=maxStringLengthToReport) out[2]--;
 		stack.setPosition(pushed?previous:w.stackPointers[0]);
+/*
+System.out.println("done extending ("+w.firstCharacter+","+w.stackPointers[0]+") length="+w.length+" other stacks:");
+for (int x=0; x<characterStack.size(); x++) System.out.print(characterStack.getElementAt(x)+"|");
+System.out.println();
+for (int x=0; x<pointerStack.length(); x++) System.out.print(pointerStack.getElementAt(x)+"|");
+System.out.println();
+*/
 	}
 
 
@@ -277,6 +302,13 @@ blockSize=2;
 	}
 
 
+
+/*                      _____ _                        _
+                       |_   _| |                      | |
+                         | | | |__  _ __ ___  __ _  __| |___
+                         | | | '_ \| '__/ _ \/ _` |/ _` / __|
+                         | | | | | | | |  __/ (_| | (_| \__ \
+                         \_/ |_| |_|_|  \___|\__,_|\__,_|___/                           */
 	/**
 	 * @param nThreads maximum number of threads to be used during traversal.
 	 */
@@ -294,14 +326,10 @@ blockSize=2;
 		// negative numbers in the stack. Thus, a stack always contains at least the
 		// artificial string, except for the stacks of threads different from $threads[0]$
 		// immediately after their creation.
-		Substring artificial = SUBSTRING_CLASS.getEpsilon(C);
-		artificial.hasBeenExtended=true;  // In this way it will always be copied by $stealWork$
-		artificial.push(threads[0].stack);
-		artificial.deallocate(); artificial=null;
 		Substring epsilon = SUBSTRING_CLASS.getEpsilon(C);
-		epsilon.visited(threads[0].stack);
+		epsilon.visited(threads[0].stack,threads[0].characterStack,threads[0].pointerStack);
 		epsilon.push(threads[0].stack);
-		threads[0].stack.setPosition(epsilon.stackPointers[0]);
+		threads[0].stack.setPosition(0);
 		epsilon.deallocate(); epsilon=null;
 		threads[0].nStrings=1;
 		threads[0].nStringsNotExtended=1;
@@ -356,14 +384,11 @@ blockSize=2;
 		private final int MIN_POINTERS;
 
 		/**
-		 * Number of stack pointers used by $substringClass$ objects
-		 */
-		private final int N_POINTERS;
-
-		/**
 		 * Thread variables
 		 */
 		protected Stream stack;
+		protected RigidStream characterStack;
+		protected SimpleStream pointerStack;
 		protected long nStrings;  // Total number of strings in $stack$
 		protected long nStringsNotExtended;  // Number of strings in $stack$ that have not been extended
 		protected long nShortStringsNotExtended;  // Number of strings in $stack$ that have not been extended, and that have length in $[1..MAX_STRING_LENGTH_FOR_SPLIT]$.
@@ -381,34 +406,34 @@ blockSize=2;
 		private Stream donorStack;
 		private long donorStackLength;  // In bits
 		private long newStack_previousSubstringAddress;
-		private Stream translatorFrom, translatorTo;  // Translate pointers of extended strings in $donorStack$ ($translatorFrom[i]$) to pointers of extended strings in the new (receiver) $stack$ ($translatorTo[i]$).
+		private SimpleStream translatorFrom, translatorTo;  // Translate pointers of extended strings in $donorStack$ ($translatorFrom[i]$) to pointers of extended strings in the new (receiver) $stack$ ($translatorTo[i]$).
 		private long translator_last;  // Last element used in $translator*$
-		private XorShiftStarRandom random;
 
 
 		public SubstringIteratorThread(SubstringIteratorThread[] threads, int threadID, AtomicInteger donorGenerator, CountDownLatch latch) {
 			MIN_POINTERS=Substring.MIN_POINTERS;
-			N_POINTERS=SUBSTRING_CLASS.nPointers;
 			this.threads=threads;
 			nThreads=threads.length;
 			this.threadID=threadID;
 			this.donorGenerator=donorGenerator;
 			this.latch=latch;
 			stack = new Stream(constants.LONGS_PER_REGION);
-			random = new XorShiftStarRandom();
-			translatorFrom = new Stream(constants.LONGS_PER_REGION);
-			translatorTo = new Stream(constants.LONGS_PER_REGION);
+			characterStack = new RigidStream(log2alphabetLength,constants.LONGS_PER_REGION_CHARACTERSTACK);
+			pointerStack = new SimpleStream(constants.LONGS_PER_REGION_POINTERSTACK);
+			translatorFrom = new SimpleStream(constants.LONGS_PER_REGION_POINTERSTACK);
+			translatorTo = new SimpleStream(constants.LONGS_PER_REGION_POINTERSTACK);
 		}
 
 
 		private final void deallocate() {
 			stack.deallocate(); stack=null;
+			characterStack.deallocate(); characterStack=null;
+			pointerStack.deallocate(); pointerStack=null;
 			threads=null;
 			donor=null;
 			donorStack=null;
 			translatorFrom.deallocate(); translatorFrom=null;
 			translatorTo.deallocate(); translatorTo=null;
-			random=null;
 		}
 
 
@@ -428,13 +453,13 @@ blockSize=2;
 			Substring w = SUBSTRING_CLASS.getInstance();
 
 			isAlive=true;
-			if (constants.N_THREADS>1 && stack.getPosition()==0) stealWork();
-			while (stack.getPosition()>0) {
+			if (constants.N_THREADS>1 && nStringsNotExtended==0) stealWork();
+			while (nStringsNotExtended>0) {
 				// Exhausting the current stack
 				while (true) {
 					synchronized(this) {
-						if (stack.getPosition()>0) {
-							extendLeft(stack,w,leftExtensions,positions,multirankStack,multirankOutput,multirankOnes,constants.MAX_STRING_LENGTH_FOR_SPLIT,extendLeftOutput,extensionBuffer);
+						if (nStringsNotExtended>0) {
+							extendLeft(stack,characterStack,pointerStack,w,leftExtensions,positions,multirankStack,multirankOutput,multirankOnes,constants.MAX_STRING_LENGTH_FOR_SPLIT,extendLeftOutput,extensionBuffer);
 							nStrings+=extendLeftOutput[0];
 							nStringsNotExtended+=extendLeftOutput[1];
 							nShortStringsNotExtended+=extendLeftOutput[2];
@@ -457,7 +482,7 @@ blockSize=2;
 		 * Remark: the procedure avoids reallocating memory.
 		 */
 		private final void stealWork() {
-			int i, d;
+			int i, j, d;
 			long copied, toBeCopied;
 			Substring w = SUBSTRING_CLASS.getInstance();
 
@@ -471,8 +496,10 @@ blockSize=2;
 				synchronized(donor) {
 					if (!donor.isAlive || donor.nShortStringsNotExtended<constants.DONOR_STACK_LOWERBOUND) continue;  // Checking again before stealing
 					donorStack=donor.stack;
-					donorStackLength=donorStack.length();
+					donorStackLength=donorStack.nBits();
 					stack.clear(false);  // Avoids reallocation
+					characterStack.clear(false);
+					pointerStack.clear(false);
 					nStrings=0;
 					nStringsNotExtended=0;
 					nShortStringsNotExtended=0;
@@ -506,24 +533,28 @@ blockSize=2;
 		private final void copy(Substring w) {
 			if (w.hasBeenExtended) {
 				translator_last++;
-				translatorFrom.push(w.stackPointers[0],64);
+				translatorFrom.push(w.stackPointers[0]);
 			}
 			else {
 				w.markAsStolen(donorStack);
 				donor.nStringsNotExtended--;
 				donor.nShortStringsNotExtended--;
 			}
-			for (int i=MIN_POINTERS-1; i<N_POINTERS; i++) {
-				if (w.stackPointers[i]==0) w.stackPointers[i]=0;
-				else {
-					translatorTo.setPosition(translatorFrom.binarySearch(0,w.hasBeenExtended?translator_last:translator_last+1,w.stackPointers[i],64,6));
-					w.stackPointers[i]=translatorTo.read(64);
-				}
+			for (int i=MIN_POINTERS; i<w.nPointers; i++) {
+				if (w.stackPointers[i]==0) continue;
+				if (w.stackPointers[i]==w.stackPointers[0]) w.stackPointers[i]=-1;  // This will be converted into the new correct value by $Substring.push$
+				else w.stackPointers[i]=translatorTo.getElementAt(translatorFrom.binarySearch(0,w.hasBeenExtended?translator_last:translator_last+1,w.stackPointers[i]));
 			}
 			w.stackPointers[1]=newStack_previousSubstringAddress;
 			w.push(stack);
 			nStrings++;
-			if (w.hasBeenExtended) translatorTo.push(w.stackPointers[0],64);
+			if (w.hasBeenExtended) {
+				translatorTo.push(w.stackPointers[0]);
+				if (w.length>0) {
+					characterStack.push(w.firstCharacter);
+					pointerStack.push(w.stackPointers[0]);
+				}
+			}
 			else {
 				nStringsNotExtended++;
 				nShortStringsNotExtended++;
