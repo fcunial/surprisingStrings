@@ -284,22 +284,6 @@ public class Substring {
 
 
 	/**
-	 * @return an \emph{upper bound} on the number of bits required to serialize any
-	 * instance of this class.
-	 */
-	protected long serializedSize() {
-		return MAX_BITS_PER_POINTER+
-			   1+1+
-			   log2bwtLength+
-			   log2alphabetLength+
-			   BITS_TO_ENCODE_MAX_POINTERS+
-			   BITS_TO_ENCODE_MAX_INTERVALS+
-			   (nPointers-MIN_POINTERS+1)*MAX_BITS_PER_POINTER+
-			   (nIntervals<<1)*log2bwtLength;
-	}
-
-
-	/**
 	 * Reads $v$ from $stack$ starting from $stack.getPosition()$. At the end of the
 	 * process, the pointer of $stack$ is located at the first bit that follows
 	 * $serialized(v)$.
@@ -354,18 +338,18 @@ public class Substring {
 
 
 	/**
-	 * Same as $read$, but the procedure halts after reading the serialized substring up
-	 * to $nIntervals$, and it leaves the stack position immediately after the end of the
-	 * serialized substring.
+	 * Assume that the pointer in $stack$ is currently at the beginning of this substring
+	 * $v$. The procedure advances the pointer to the beginning of the following substring
+	 * while reading the minimum possible amount of information.
 	 */
-	protected void readFast2(Stream stack) {
+	protected void skip(Stream stack) {
 		stackPointers[0]=stack.getPosition();
 		log2address=stackPointers[0]==0?MAX_BITS_PER_POINTER:Utils.bitsToEncode(stackPointers[0]);
-		stackPointers[1]=stack.read(log2address);
-		hasBeenExtended=stack.read(1)==1?true:false;
-		hasBeenStolen=stack.read(1)==1?true:false;
-		length=stack.read(log2bwtLength);
-		firstCharacter=(int)stack.read(log2alphabetLength);
+		stack.setPosition(stack.getPosition()+
+						  log2address+
+						  1+1+
+						  log2bwtLength+
+						  log2alphabetLength);
 		nPointers=(int)stack.read(BITS_TO_ENCODE_MAX_POINTERS);
 		nIntervals=(int)stack.read(BITS_TO_ENCODE_MAX_INTERVALS);
 		stack.setPosition(stack.getPosition()+
@@ -421,24 +405,40 @@ public class Substring {
 
 
 
-
-
-	/**
-	 * Assume that the pointer in $stack$ is currently at the beginning of this substring
-	 * $v$. The procedure advances the pointer to the beginning of the following substring.
-	 *
-	 * @return the number of bits to encode pointers in $serialized(v)$.
+/**
+	 * Same as $read$, but the procedure halts after reading the serialized substring up
+	 * to $nIntervals$, and it leaves the stack position immediately after the end of the
+	 * serialized substring.
 	 */
-/*	protected int skip(Stream stack) {
-		stack.setPosition(stackPointers[0]+
-						  log2address+
-						  1+1+
-						  log2bwtLength+
-						  log2alphabetLength+
-						  BITS_TO_ENCODE_MAX_POINTERS+
-						  BITS_TO_ENCODE_MAX_INTERVALS+
-						  (nPointers-2)*log2address+
-						  (nIntervals<<1)*log2bwtLength);
-		return log2address;
+/*	protected void readFast2(Stream stack) {
+		stackPointers[0]=stack.getPosition();
+		log2address=stackPointers[0]==0?MAX_BITS_PER_POINTER:Utils.bitsToEncode(stackPointers[0]);
+		stackPointers[1]=stack.read(log2address);
+		hasBeenExtended=stack.read(1)==1?true:false;
+		hasBeenStolen=stack.read(1)==1?true:false;
+		length=stack.read(log2bwtLength);
+		firstCharacter=(int)stack.read(log2alphabetLength);
+		nPointers=(int)stack.read(BITS_TO_ENCODE_MAX_POINTERS);
+		nIntervals=(int)stack.read(BITS_TO_ENCODE_MAX_INTERVALS);
+		stack.setPosition(stack.getPosition()+
+						  (nPointers-MIN_POINTERS)*log2address+
+						  nIntervals*log2bwtLength*2);
+	}
+*/
+
+
+/**
+	 * @return an \emph{upper bound} on the number of bits required to serialize any
+	 * instance of this class.
+	 */
+/*	protected long serializedSize() {
+		return MAX_BITS_PER_POINTER+
+			   1+1+
+			   log2bwtLength+
+			   log2alphabetLength+
+			   BITS_TO_ENCODE_MAX_POINTERS+
+			   BITS_TO_ENCODE_MAX_INTERVALS+
+			   (nPointers-MIN_POINTERS+1)*MAX_BITS_PER_POINTER+
+			   (nIntervals<<1)*log2bwtLength;
 	}
 */

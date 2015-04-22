@@ -131,19 +131,176 @@ public class Tests {
 			System.exit(1);
 		}
 		else System.out.println("RightMaximalSubstring \t\t\t [   OK   ]");
-*/		// Testing $BorderSubstring$
+		// Testing $BorderSubstring$
 		if (!test_rightMaximalSubstringsWithBorder()) {
 			System.err.println("BorderSubstring \t\t\t [ FAILED ]");
 			System.exit(1);
 		}
 		else System.out.println("BorderSubstring \t\t\t [   OK   ]");
-
+*/
+		// Testing $BernoulliSubstring$
+		if (!test_BernoulliSubstring()) {
+			System.err.println("BernoulliSubstring \t\t\t [ FAILED ]");
+			System.exit(1);
+		}
+		else System.out.println("BernoulliSubstring \t\t\t [   OK   ]");
 
 
 
 	}
 
 
+
+
+
+
+	/**
+	 * Set $blockSize=2;$ in the constructor of $SubstringIterator$ when testing with
+	 * small strings.
+	 */
+	private static final boolean test_BernoulliSubstring() {
+		final int STRING_LENGTH = 100;
+		final int N_ITERATIONS = 100;
+		Constants constants = new Constants();
+		int i, j, k, c, sharpPosition;
+		int[] alphabet = new int[] {0,1,2,3};
+		String stringString = new String();
+		String[] trueSubstringsArray, iteratorSubstringsArray;
+		IntArray string;
+		XorShiftStarRandom random = new XorShiftStarRandom();
+		SubstringIterator iterator;
+		HashSet<String> trueSubstrings;
+
+		string = new IntArray(STRING_LENGTH,2,false);
+		for (i=0; i<N_ITERATIONS; i++) {
+			stringString="";
+			string.clear();
+			for (j=0; j<STRING_LENGTH; j++) {
+ 				c=random.nextInt(3);
+ 				stringString+=""+c;
+ 				string.push(c);
+ 			}
+
+			// Trivial enumeration of all distinct right-maximal substrings
+			boolean isRightMaximal;
+			int position, rightChar, previousRightChar;
+			String tmpString;
+			trueSubstrings = new HashSet<String>();
+			trueSubstrings.add("");  // Adding $\epsilon$
+			for (j=0; j<STRING_LENGTH; j++) {
+				for (k=j+1; k<=STRING_LENGTH; k++) {
+					tmpString=stringString.substring(j,k);
+					isRightMaximal=false; position=0; previousRightChar=-1;
+					while (true) {
+						position=stringString.indexOf(tmpString,position);
+						if (position==-1) break;
+						if (position+tmpString.length()==STRING_LENGTH) rightChar=Integer.MAX_VALUE;
+						else rightChar=stringString.charAt(position+tmpString.length());
+						if (previousRightChar!=-1 && rightChar!=previousRightChar) {
+							isRightMaximal=true;
+							break;
+						}
+						previousRightChar=rightChar;
+						position++;
+					}
+					if (isRightMaximal) trueSubstrings.add(tmpString);
+				}
+			}
+			trueSubstringsArray = new String[trueSubstrings.size()];
+			trueSubstrings.toArray(trueSubstringsArray);
+			Arrays.sort(trueSubstringsArray);
+//System.out.println("Trivial enumeration completed: "+trueSubstringsArray.length+" distinct right-maximal strings:");
+//for (int x=0; x<trueSubstringsArray.length; x++) System.out.println(trueSubstringsArray[x]);
+
+			// Running $SubstringIterator$
+			constants.N_THREADS=2;
+			constants.MAX_MEMORY=10;
+			iteratorSubstrings = new HashSet<String>();
+			iterator = new SubstringIterator(string,alphabet,4,new TestBernoulliSubstring(4,2,STRING_LENGTH+1,Utils.log2(STRING_LENGTH+1),stringString),constants);
+			System.out.print("(");
+			iterator.run();
+			System.out.print(")");
+			iteratorSubstringsArray = new String[iteratorSubstrings.size()];
+			iteratorSubstrings.toArray(iteratorSubstringsArray);
+			Arrays.sort(iteratorSubstringsArray);
+//System.out.println("SubstringIterator enumeration completed: ");
+//for (int x=0; x<iteratorSubstringsArray.length; x++) System.out.println(iteratorSubstringsArray[x]);
+			// Tests
+			if (iteratorSubstrings.size()!=trueSubstrings.size()) {
+				System.out.println("Error in BernoulliSubstring: correct total right-maximal substrings="+trueSubstrings.size()+" enumerated="+iteratorSubstrings.size());
+				System.out.println("string: "+stringString);
+				return false;
+			}
+			for (int x=0; x<iteratorSubstringsArray.length; x++) {
+				if (Arrays.binarySearch(trueSubstringsArray,iteratorSubstringsArray[x])<0) {
+					System.out.println("Error in BernoulliSubstring: the enumerated right-maximal substring "+iteratorSubstringsArray[x]+" does not exist.");
+					System.out.println("string: "+stringString);
+					return false;
+				}
+			}
+			for (int x=0; x<trueSubstringsArray.length; x++) {
+				if (Arrays.binarySearch(iteratorSubstringsArray,trueSubstringsArray[x])<0) {
+					System.out.println("Error in BernoulliSubstring: right-maximal substring "+trueSubstringsArray[x]+" in the string has not been enumerated.");
+					System.out.println("string: "+stringString);
+					return false;
+				}
+			}
+		}
+
+		return true;
+	}
+
+
+	private static class TestBernoulliSubstring extends BernoulliSubstring {
+		private String text;
+
+		public TestBernoulliSubstring(int alphabetLength, int log2alphabetLength, long bwtLength, int log2bwtLength, String text) {
+			super(alphabetLength,log2alphabetLength,bwtLength,log2bwtLength);
+			this.text=text;
+		}
+
+		protected Substring getInstance() {
+			return new TestBernoulliSubstring(alphabetLength,log2alphabetLength,bwtLength,log2bwtLength,text);
+		}
+
+		protected void visited(Stream stack, RigidStream characterStack, SimpleStream pointerStack) {
+			if (length>bwtLength) {
+				System.err.println("ERROR: GENERATED A SUBSTRING LONGER THAN THE TEXT PLUS ONE: (length="+length+")");
+				System.err.println("text: "+text);
+				System.exit(1);
+			}
+
+			// Reconstructing the sequence
+			boolean startsWithSharp;
+			String str;
+			IntArray sequence = new IntArray((int)length,log2alphabetLength,false);
+			startsWithSharp=getSequence(characterStack,sequence);
+			if (startsWithSharp) str="#";
+			else str="";
+			for (int i=0; i<(startsWithSharp?length-1:length); i++) str+=""+sequence.getElementAt(i);
+/*System.out.println("generated substring "+str+" with the following intervals: (isRightMaximal="+isRightMaximal+", stackPointers[2]="+stackPointers[2]+" sequence.bitsPerInt="+sequence.bitsPerInt+")");
+for (int x=0; x<=alphabetLength; x++) {
+	System.out.print("["+bwtIntervals[x][0]+".."+bwtIntervals[x][1]+"] ");
+}
+System.out.println();
+*/
+			// Adding $\epsilon$
+			if (length==0) {
+				synchronized(iteratorSubstrings) { iteratorSubstrings.add(""); }
+				return;
+			}
+
+			// Right-maximality
+			if (rightContext>1) {
+				if (startsWithSharp) {
+					System.err.println("ERROR: GENERATED A RIGHT-MAXIMAL SUBSTRING THAT STARTS WITH #: "+str);
+					System.err.println("text: "+text);
+					System.exit(1);
+				}
+				synchronized(iteratorSubstrings) { iteratorSubstrings.add(str); }
+			}
+		}
+	}
 
 
 	private static final boolean test_simpleStream() {
@@ -540,7 +697,7 @@ if (str.equals("000")) {
 				}
 				synchronized(iteratorSubstringsWithBorder) {
 //System.out.println("{"+longestBorderLeftCharacter+","+longestBorderRightCharacter+","+(longestBorder==null?"":longestBorder.length)+"} ");
-					if (longestBorder==null) iteratorSubstringsWithBorder.add(new StringWithBorder(str,0,-1,-1));
+					if (rightLength==0) iteratorSubstringsWithBorder.add(new StringWithBorder(str,0,-1,-1));
 					else iteratorSubstringsWithBorder.add(new StringWithBorder(str,longestBorder.length,leftCharacters[longestBorderLeftCharacter],
 																										rightCharacters[longestBorderRightCharacter]));
 				}

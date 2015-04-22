@@ -93,15 +93,6 @@ public class BorderSubstring extends RightMaximalSubstring {
 	}
 
 
-	protected long serializedSize() {
-		return super.serializedSize()+
-			   log2alphabetLength+
-			   log2alphabetLength+
-			   log2alphabetLength+
-			   alphabetLength*log2alphabetLength*2;
-	}
-
-
 	protected void read(Stream stack) {
 		super.read(stack);
 		rightLength=(int)stack.read(log2alphabetLength);
@@ -132,8 +123,8 @@ public class BorderSubstring extends RightMaximalSubstring {
 	}
 
 
-	protected void readFast2(Stream stack) {
-		super.readFast2(stack);
+	protected void skip(Stream stack) {
+		super.skip(stack);
 		rightLength=(int)stack.read(log2alphabetLength);
 		leftLength=(int)stack.read(log2alphabetLength);
 		skipBorderSubstring(stack);
@@ -180,7 +171,6 @@ public class BorderSubstring extends RightMaximalSubstring {
 	 */
 	protected void init(Substring suffix, int firstCharacter, Stream stack, RigidStream characterStack, SimpleStream pointerStack, long[] buffer) {
 		super.init(suffix,firstCharacter,stack,characterStack,pointerStack,buffer);
-		longestBorder=null;
 		rightLength=0;
 		longestBorderRightCharacter=-1;
 		longestBorderLeftCharacter=-1;
@@ -208,12 +198,16 @@ public class BorderSubstring extends RightMaximalSubstring {
 			rightLength=1;
 			nPointers=MIN_POINTERS+1;
 			if (length==2) {
-				longestBorder=(BorderSubstring)suffix;
+				if (longestBorder==null) longestBorder=(BorderSubstring)getInstance();  // Executed only once
+				backupPointer=stack.getPosition();
+				stack.setPosition(suffix.stackPointers[0]);
+				longestBorder.read(stack);
+				stack.setPosition(backupPointer);
 				d=firstCharacter;
 				pointer=-1;  // -1 will be converted to $stackPointers[0]$ by $Substring.push$
 			}
 			else {
-				longestBorder=(BorderSubstring)getInstance();
+				if (longestBorder==null) longestBorder=(BorderSubstring)getInstance();  // Executed only once
 				backupPointer=stack.getPosition();
 				stack.setPosition(pointerStack.getElementAt(0));
 				longestBorder.read(stack);
@@ -242,8 +236,8 @@ public class BorderSubstring extends RightMaximalSubstring {
 		long pointer, backupPointer, longestBorderPointer, longestBorderLength;
 
 		// Loading longest border and preceding character
+		if (longestBorder==null) longestBorder=(BorderSubstring)getInstance();  // Executed only once
 		backupPointer=stack.getPosition();
-		longestBorder=(BorderSubstring)getInstance();
 		longestBorderPointer=suffix.stackPointers[MIN_POINTERS+pos];
 		stack.setPosition(longestBorderPointer);
 		longestBorder.read(stack);
@@ -293,7 +287,7 @@ public class BorderSubstring extends RightMaximalSubstring {
 	 * Initializes the left array of $v$ from the longest border of $v$.
 	 */
 	private final void initLeftCharacters(RigidStream characterStack, SimpleStream pointerStack) {
-		if (longestBorder==null) {
+		if (rightLength==0) {
 			leftLength=0;
 			return;
 		}
@@ -359,3 +353,21 @@ public class BorderSubstring extends RightMaximalSubstring {
 	}
 
 }
+
+/*
+    protected void readFast2(Stream stack) {
+		super.readFast2(stack);
+		rightLength=(int)stack.read(log2alphabetLength);
+		leftLength=(int)stack.read(log2alphabetLength);
+		skipBorderSubstring(stack);
+	}
+
+	protected long serializedSize() {
+		return super.serializedSize()+
+			   log2alphabetLength+
+			   log2alphabetLength+
+			   log2alphabetLength+
+			   alphabetLength*log2alphabetLength*2;
+	}
+*/
+
