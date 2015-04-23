@@ -78,6 +78,13 @@ public class Constants {
 	 */
 	public static double[] logProbabilities = new double[] {1/4,1/4,1/4,1/4};
 
+	/**
+	 * Significantly greater than
+	 */
+	public static int GG = 100;
+
+	public static boolean TIGHT_POISSON_ERROR = true;
+
 
 	public static final byte SCORE_ID = 8;
 

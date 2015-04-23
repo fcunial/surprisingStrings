@@ -42,7 +42,8 @@ public class Substring {
 	protected int alphabetLength, log2alphabetLength, log2bwtLength;
 	protected int nIntervals;  // Number of rows in $bwtIntervals$
 	protected int nPointers;  // Number of elements in $stackPointers$
-	protected long bwtLength;
+	protected long bwtLength, textLength;
+	protected double oneOverLogTextLength;
 
 	/**
 	 * Intervals of substrings (possibly different from $v$) in $BWT_s$, used to implement
@@ -102,6 +103,8 @@ public class Substring {
 		this.alphabetLength=alphabetLength;
 		this.log2alphabetLength=log2alphabetLength;
 		this.bwtLength=bwtLength;
+		textLength=bwtLength-1;
+		oneOverLogTextLength=1D/Math.log(textLength);
 		this.log2bwtLength=log2bwtLength;
 		MAX_INTERVALS=1;
 		BITS_TO_ENCODE_MAX_INTERVALS=Utils.bitsToEncode(MAX_INTERVALS);
