@@ -46,48 +46,36 @@ public class BernoulliSubstring extends BorderSubstring {
 	}
 
 
-	protected void push(Stream stack) {
-		super.push(stack);
+	protected final void pushHeadPrime(Stream stack) {
+		super.pushHeadPrime(stack);
 		stack.push(Double.doubleToLongBits(logBarP),64);
-		stack.push(Double.doubleToLongBits(f),64);
-		stack.push(Double.doubleToLongBits(g),64);
-	}
-
-
-	protected void read(Stream stack) {
-		super.read(stack);
-		logBarP=Double.longBitsToDouble(stack.read(64));
-		f=Double.longBitsToDouble(stack.read(64));
-		g=Double.longBitsToDouble(stack.read(64));
-	}
-
-
-	/**
-	 * $f$ and $g$ are not read from the stack
-	 */
-	protected void readFast(Stream stack) {
-		super.readFast(stack);
-		if (hasBeenExtended||hasBeenStolen) stack.setPosition(stack.getPosition()+64*3);
-		else {
-			logBarP=Double.longBitsToDouble(stack.read(64));
-			stack.setPosition(stack.getPosition()+64*2);
+		if (rightLength>0) {
+			stack.push(Double.doubleToLongBits(f),64);
+			stack.push(Double.doubleToLongBits(g),64);
 		}
 	}
 
 
-	/**
-	 * Loads also $logBarP$
-	 */
-	protected void skip(Stream stack) {
-		super.skip(stack);
+	protected void readHeadPrime(Stream stack, boolean fast) {
+		super.readHeadPrime(stack,fast);
 		logBarP=Double.longBitsToDouble(stack.read(64));
-		stack.setPosition(stack.getPosition()+64*2);
+		if (rightLength>0) {
+			if (fast && hasBeenExtended) {
+				f=-1;
+				g=-1;
+				stack.setPosition(stack.getPosition()+64*2);
+			}
+			else {
+				f=Double.longBitsToDouble(stack.read(64));
+				g=Double.longBitsToDouble(stack.read(64));
+			}
+		}
 	}
 
 
-	protected void pop(Stream stack) {
-		stack.pop(64*3);
-		super.pop(stack);
+	protected void popHeadPrime(Stream stack) {
+		stack.pop(rightLength>0?64*3:64);
+		super.popHeadPrime(stack);
 	}
 
 
@@ -118,7 +106,7 @@ public class BernoulliSubstring extends BorderSubstring {
 			if (tmpString==null) tmpString=(BernoulliSubstring)getInstance();  // Executed only once
 			backupPointer=stack.getPosition();
 			stack.setPosition(pointerStack.getElementAt(length-longestBorderLength-1));
-			tmpString.skip(stack);  // Loads just $logBarP$
+			tmpString.read(stack,true,true);
 			stack.setPosition(backupPointer);
 			x=Math.exp(tmpString.logBarP);
 			longestBorderG=((BernoulliSubstring)longestBorder).g;
@@ -135,6 +123,16 @@ public class BernoulliSubstring extends BorderSubstring {
 }
 
 
+
+	/**
+	 * Loads also $logBarP$
+	 */
+/*	protected void skip(Stream stack) {
+		super.skip(stack);
+		logBarP=Double.longBitsToDouble(stack.read(64));
+		stack.setPosition(stack.getPosition()+64*2);
+	}
+*/
 
 
 /**

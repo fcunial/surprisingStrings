@@ -140,10 +140,10 @@ blockSize=2;
 
 		// Reading the top of $stack$
 		out[0]=0; out[1]=0; out[2]=0;
-		w.readFast(stack);
+		w.read(stack,true,true);
 		while (w.hasBeenExtended || w.hasBeenStolen) {
 			previous=w.stackPointers[1];
-			w.pop(stack);
+			w.pop(stack,false);
 			if (w.hasBeenExtended) {
 				characterStack.pop();
 				pointerStack.pop();
@@ -151,18 +151,9 @@ blockSize=2;
 			out[0]--;
 			stack.setPosition(previous);
 			if (previous==0) return;
-			w.readFast(stack);
+			w.read(stack,true,true);
 		}
 
-
-/*System.out.println("other stacks after reading/popping:");
-for (int x=0; x<characterStack.size(); x++) System.out.print(characterStack.getElementAt(x)+"|");
-System.out.println();
-for (int x=0; x<pointerStack.length(); x++) System.out.print(pointerStack.getElementAt(x)+"|");
-System.out.println();
-
-System.out.println("1> w.firstCharacter="+w.firstCharacter+" w.length="+w.length);
-*/
 		// Putting the positions of $w.bwtIntervals$ in block order, and sequentially
 		// inside each block. Since this iterator is generic, we do not assume the
 		// positions in $w.bwtIntervals$ to be already sorted.
@@ -217,16 +208,16 @@ System.out.println("1> w.firstCharacter="+w.firstCharacter+" w.length="+w.length
 		}
 
 		// Signalling to the left-extensions of $w$, and pushing them onto $stack$.
-//System.out.println("2> w.firstCharacter="+w.firstCharacter+" w.length="+w.length);
+		w.pop(stack,true);  // Removing TAIL and TAIL' from the stack
+		w.markAsExtended(stack);
+		if (w.length>0) {
+			characterStack.push(w.firstCharacter);  // Needed for calls to $Substring.getSequence()$ inside $Substring.visited()$ to be successful
+			pointerStack.push(w.stackPointers[0]);
+		}
 		isShort=w.length+1<=maxStringLengthToReport;
 		extension=null; pushed=false;
 		w.fillBuffer(extensionBuffer);
 		previous=w.stackPointers[0];
-		if (w.length>0) {
-//System.out.println("3> w.firstCharacter="+w.firstCharacter);
-			characterStack.push(w.firstCharacter);  // Needed for calls to $Substring.getSequence()$ inside $Substring.visited()$ to be successful
-			pointerStack.push(w.stackPointers[0]);
-		}
 		for (c=0; c<alphabetLength+1; c++) {
 			extension=leftExtensions[c];
 			if (extension.occurs()) {
@@ -242,17 +233,9 @@ System.out.println("1> w.firstCharacter="+w.firstCharacter+" w.length="+w.length
 			}
 		}
 		w.emptyBuffer(extensionBuffer);
-		w.markAsExtended(stack);
 		out[1]--;
 		if (w.length<=maxStringLengthToReport) out[2]--;
 		stack.setPosition(pushed?previous:w.stackPointers[0]);
-/*
-System.out.println("done extending ("+w.firstCharacter+","+w.stackPointers[0]+") length="+w.length+" other stacks:");
-for (int x=0; x<characterStack.size(); x++) System.out.print(characterStack.getElementAt(x)+"|");
-System.out.println();
-for (int x=0; x<pointerStack.length(); x++) System.out.print(pointerStack.getElementAt(x)+"|");
-System.out.println();
-*/
 	}
 
 
@@ -404,6 +387,7 @@ System.out.println();
 		 */
 		private SubstringIteratorThread donor;
 		private Stream donorStack;
+		private RigidStream donorCharacterStack;
 		private long donorStackLength;  // In bits
 		private long newStack_previousSubstringAddress;
 		private SimpleStream translatorFrom, translatorTo;  // Translate pointers of extended strings in $donorStack$ ($translatorFrom[i]$) to pointers of extended strings in the new (receiver) $stack$ ($translatorTo[i]$).
@@ -497,6 +481,7 @@ System.out.println();
 					if (!donor.isAlive || donor.nShortStringsNotExtended<constants.DONOR_STACK_LOWERBOUND) continue;  // Checking again before stealing
 					donorStack=donor.stack;
 					donorStackLength=donorStack.nBits();
+					donorCharacterStack=donor.characterStack;
 					stack.clear(false);  // Avoids reallocation
 					characterStack.clear(false);
 					pointerStack.clear(false);
@@ -512,7 +497,7 @@ System.out.println();
 					long backupPointer = donorStack.getPosition();
 					donorStack.setPosition(0);
 					while (copied<toBeCopied) {
-						w.read(donorStack);
+						w.read(donorStack,false,true);
 						if (!w.hasBeenExtended && !w.hasBeenStolen) copied++;
 						if (!w.hasBeenStolen) copy(w);
 					}
@@ -551,7 +536,7 @@ System.out.println();
 			if (w.hasBeenExtended) {
 				translatorTo.push(w.stackPointers[0]);
 				if (w.length>0) {
-					characterStack.push(w.firstCharacter);
+					characterStack.push(donorCharacterStack.getElementAt(w.length-1));
 					pointerStack.push(w.stackPointers[0]);
 				}
 			}

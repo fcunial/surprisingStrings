@@ -76,80 +76,57 @@ public class BorderSubstring extends RightMaximalSubstring {
 	}
 
 
-	protected void push(Stream stack) {
-		super.push(stack);
-		pushBorderSubstring(stack);
-	}
-
-
-	private void pushBorderSubstring(Stream stack) {
+	/**
+	 * HEAD' has the following format:
+	 * 1. rightLength
+	 * 2. leftLength, if rightLength>0;
+	 * 3. longestBorderRightCharacter, if rightLength>0;
+	 * 4. rightCharacters, if rightLength>0;
+	 * 5. leftCharacters, if rightLength>0.
+	 */
+	protected void pushHeadPrime(Stream stack) {
 		stack.push(rightLength,log2alphabetLength);
-		stack.push(leftLength,log2alphabetLength);
-		if (rightLength==0) return;
-		stack.push(longestBorderRightCharacter,Utils.log2(rightLength));
-		int i;
-		for (i=0; i<rightLength; i++) stack.push(rightCharacters[i],log2alphabetLength);
-		for (i=0; i<leftLength; i++) stack.push(leftCharacters[i],log2alphabetLength);
+		if (rightLength>0) {
+			stack.push(leftLength,log2alphabetLength);
+			stack.push(longestBorderRightCharacter,Utils.log2(rightLength));
+			int i;
+			for (i=0; i<rightLength; i++) stack.push(rightCharacters[i],log2alphabetLength);
+			for (i=0; i<leftLength; i++) stack.push(leftCharacters[i],log2alphabetLength);
+		}
 	}
 
 
-	protected void read(Stream stack) {
-		super.read(stack);
+	protected void readHeadPrime(Stream stack, boolean fast) {
 		rightLength=(int)stack.read(log2alphabetLength);
-		leftLength=(int)stack.read(log2alphabetLength);
-		readBorderSubstring(stack);
-	}
-
-
-	private void readBorderSubstring(Stream stack) {
 		if (rightLength==0) {
 			longestBorderRightCharacter=-1;
 			leftLength=0;
-			return;
 		}
-		longestBorderRightCharacter=(int)stack.read(Utils.log2(rightLength));
-		int i;
-		for (i=0; i<rightLength; i++) rightCharacters[i]=(int)stack.read(log2alphabetLength);
-		for (i=0; i<leftLength; i++) leftCharacters[i]=(int)stack.read(log2alphabetLength);
+		else {
+			leftLength=(int)stack.read(log2alphabetLength);
+			longestBorderRightCharacter=-1;
+			if (fast && hasBeenExtended) {
+				stack.setPosition( stack.getPosition()+
+								   Utils.log2(rightLength)+
+								   rightLength*log2alphabetLength+
+								   leftLength*log2alphabetLength );
+			}
+			else {
+				longestBorderRightCharacter=(int)stack.read(Utils.log2(rightLength));
+				int i;
+				for (i=0; i<rightLength; i++) rightCharacters[i]=(int)stack.read(log2alphabetLength);
+				for (i=0; i<leftLength; i++) leftCharacters[i]=(int)stack.read(log2alphabetLength);
+			}
+		}
 	}
 
 
-	protected void readFast(Stream stack) {
-		super.readFast(stack);
-		rightLength=(int)stack.read(log2alphabetLength);
-		leftLength=(int)stack.read(log2alphabetLength);
-		if (hasBeenExtended||hasBeenStolen) skipBorderSubstring(stack);
-		else readBorderSubstring(stack);
-	}
-
-
-	protected void skip(Stream stack) {
-		super.skip(stack);
-		rightLength=(int)stack.read(log2alphabetLength);
-		leftLength=(int)stack.read(log2alphabetLength);
-		skipBorderSubstring(stack);
-	}
-
-
-	private void skipBorderSubstring(Stream stack) {
-		if (rightLength>0) stack.setPosition(stack.getPosition()+
-											 Utils.log2(rightLength)+
-											 rightLength*log2alphabetLength+
-											 leftLength*log2alphabetLength);
-	}
-
-
-	protected void pop(Stream stack) {
-		popBorderSubstring(stack);
-		super.pop(stack);
-	}
-
-
-	private void popBorderSubstring(Stream stack) {
-		long x = rightLength>0?rightLength*log2alphabetLength+leftLength*log2alphabetLength+Utils.log2(rightLength):0;
-		stack.pop(x+
-		          log2alphabetLength+
-		          log2alphabetLength);
+	protected void popHeadPrime(Stream stack) {
+		long x = rightLength>0 ? log2alphabetLength+
+						         Utils.log2(rightLength)+
+						         rightLength*log2alphabetLength+
+						         leftLength*log2alphabetLength : 0;
+		stack.pop(log2alphabetLength+x);
 	}
 
 
@@ -201,7 +178,7 @@ public class BorderSubstring extends RightMaximalSubstring {
 				if (longestBorder==null) longestBorder=(BorderSubstring)getInstance();  // Executed only once
 				backupPointer=stack.getPosition();
 				stack.setPosition(suffix.stackPointers[0]);
-				longestBorder.read(stack);
+				longestBorder.read(stack,false,false);
 				stack.setPosition(backupPointer);
 				d=firstCharacter;
 				pointer=-1;  // -1 will be converted to $stackPointers[0]$ by $Substring.push$
@@ -210,7 +187,7 @@ public class BorderSubstring extends RightMaximalSubstring {
 				if (longestBorder==null) longestBorder=(BorderSubstring)getInstance();  // Executed only once
 				backupPointer=stack.getPosition();
 				stack.setPosition(pointerStack.getElementAt(0));
-				longestBorder.read(stack);
+				longestBorder.read(stack,false,false);
 				stack.setPosition(backupPointer);
 				d=(int)(characterStack.getElementAt(1));  // Character that precedes the longest border of $v$
 				pointer=pointerStack.getElementAt(1);
@@ -240,7 +217,7 @@ public class BorderSubstring extends RightMaximalSubstring {
 		backupPointer=stack.getPosition();
 		longestBorderPointer=suffix.stackPointers[MIN_POINTERS+pos];
 		stack.setPosition(longestBorderPointer);
-		longestBorder.read(stack);
+		longestBorder.read(stack,false,false);
 		longestBorderLength=longestBorder.length;
 		if (longestBorderLength==length-1) {
 			d=firstCharacter;
@@ -354,6 +331,10 @@ public class BorderSubstring extends RightMaximalSubstring {
 
 }
 
+
+
+
+
 /*
     protected void readFast2(Stream stack) {
 		super.readFast2(stack);
@@ -370,4 +351,11 @@ public class BorderSubstring extends RightMaximalSubstring {
 			   alphabetLength*log2alphabetLength*2;
 	}
 */
-
+/*
+protected void skip(Stream stack) {
+		super.skip(stack);
+		rightLength=(int)stack.read(log2alphabetLength);
+		leftLength=(int)stack.read(log2alphabetLength);
+		skipBorderSubstring(stack);
+	}
+*/

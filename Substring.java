@@ -253,134 +253,183 @@ public class Substring {
                              \ `--.| |_ __ _  ___| | __
                               `--. \ __/ _` |/ __| |/ /
                              /\__/ / || (_| | (__|   <
-                             \____/ \__\__,_|\___|_|\_\                                 */
+                             \____/ \__\__,_|\___|_|\_\
+
+Format: HEAD | HEAD' || TAIL | TAIL'
+
+HEAD is a header that is common both to substrings that have been extended and to
+substrings that have not been extended. It contains the following fields:
+1. stackPointers[1]
+2. hasBeenExtended
+3. hasBeenStolen
+4. length
+5. nPointers
+6. stackPointers[MIN_POINTERS..nPointers-1]
+
+TAIL is stored only for strings that have not been extended. It contains the following
+fields:
+1. firstCharacter
+2. nIntervals
+4. bwtIntervals[0..nIntervals-1]
+
+HEAD' is a header defined by subclasses of $Substring$ that is common to both substrings
+that have been extended and to substrings that have not been extended. TAIL' is a tail
+defined by subclasses of $Substring$ that is stored only for strings that have not been
+extended.
+*/
+
+	protected final void push(Stream stack) {
+		pushHead(stack);
+		pushHeadPrime(stack);
+		if (!hasBeenExtended) {
+			pushTail(stack);
+			pushTailPrime(stack);
+		}
+	}
+
+
 	/**
-	 * Appends to $stack$ the serialized representation of $v$, overwrites
-	 * $stackPointers[0]$, and transforms into to $stackPointers[0]$ every -1 in
-	 * $stackPointers$.
+	 * Overwrites $stackPointers[0]$, and transforms into to $stackPointers[0]$ every -1
+	 * in $stackPointers$.
 	 */
-	protected void push(Stream stack) {
+	private final void pushHead(Stream stack) {
 		stackPointers[0]=stack.nBits();
 		log2address=stackPointers[0]==0?MAX_BITS_PER_POINTER:Utils.bitsToEncode(stackPointers[0]);
 		stack.push(stackPointers[1],log2address);
 		stack.push(hasBeenExtended?1:0,1);
 		stack.push(hasBeenStolen?1:0,1);
 		stack.push(length,log2bwtLength);
-		stack.push(firstCharacter,log2alphabetLength);
 		stack.push(nPointers,BITS_TO_ENCODE_MAX_POINTERS);
-		stack.push(nIntervals,BITS_TO_ENCODE_MAX_INTERVALS);
-		int i;
-		for (i=MIN_POINTERS; i<nPointers; i++) {
+		for (int i=MIN_POINTERS; i<nPointers; i++) {
 			if (stackPointers[i]==-1) stackPointers[i]=stackPointers[0];
 			stack.push(stackPointers[i],log2address);
 		}
-		for (i=0; i<nIntervals; i++) {
+	}
+
+
+	private final void pushTail(Stream stack) {
+		stack.push(firstCharacter,log2alphabetLength);
+		stack.push(nIntervals,BITS_TO_ENCODE_MAX_INTERVALS);
+		for (int i=0; i<nIntervals; i++) {
 			stack.push(bwtIntervals[i][0],log2bwtLength);
 			stack.push(bwtIntervals[i][1],log2bwtLength);
 		}
-
-//System.out.println("pushed ("+firstCharacter+","+stackPointers[0]+") length="+length);
 	}
+
+
+	protected void pushHeadPrime(Stream stack) { }
+
+
+	protected void pushTailPrime(Stream stack) { }
 
 
 	/**
 	 * Reads $v$ from $stack$ starting from $stack.getPosition()$. At the end of the
 	 * process, the pointer of $stack$ is located at the first bit that follows
-	 * $serialized(v)$.
+	 * $serialized(v)$. The procedure assumes that the pointer of $stack$ is indeed
+	 * positioned at the beginning of $serialized(v)$: no explicit check is performed.
 	 *
-	 * Remark: the procedure assumes that the pointer of $stack$ is indeed positioned at
-	 * the beginning of $serialized(v)$: no explicit check is performed.
+	 * @param fastHead skips information in HEAD if $hasBeenExtended=TRUE$;
+	 * @param fastTail skips information in TAIL if $hasBeenStolen=TRUE$.
 	 */
-	protected void read(Stream stack) {
-		stackPointers[0]=stack.getPosition();
-		log2address=stackPointers[0]==0?MAX_BITS_PER_POINTER:Utils.bitsToEncode(stackPointers[0]);
-		stackPointers[1]=stack.read(log2address);
-		hasBeenExtended=stack.read(1)==1?true:false;
-		hasBeenStolen=stack.read(1)==1?true:false;
-		length=stack.read(log2bwtLength);
-		firstCharacter=(int)stack.read(log2alphabetLength);
-		nPointers=(int)stack.read(BITS_TO_ENCODE_MAX_POINTERS);
-		nIntervals=(int)stack.read(BITS_TO_ENCODE_MAX_INTERVALS);
-		readBody(stack);
-	}
-
-
-	private void readBody(Stream stack) {
-		int i;
-		for (i=MIN_POINTERS; i<nPointers; i++) stackPointers[i]=stack.read(log2address);
-		for (i=0; i<nIntervals; i++) {
-			bwtIntervals[i][0]=stack.read(log2bwtLength);
-			bwtIntervals[i][1]=stack.read(log2bwtLength);
+	protected final void read(Stream stack, boolean fastHead, boolean fastTail) {
+		readHead(stack,fastHead);
+		readHeadPrime(stack,fastHead);
+		firstCharacter=-1;
+		nIntervals=0;
+		if (!hasBeenExtended) {
+			readTail(stack,fastTail);
+			readTailPrime(stack,fastTail);
 		}
 	}
 
 
 	/**
-	 * Same as $read$, but if $hasBeenExtended=true$ or $hasBeenStolen=true$ the procedure
-	 * halts after reading the serialized substring up to $nIntervals$, and it leaves the
-	 * stack position immediately after the end of the serialized substring.
+	 * @param fast skips reading $stackPointers$ if $hasBeenExtended=TRUE$.
 	 */
-	protected void readFast(Stream stack) {
+	private final void readHead(Stream stack, boolean fast) {
 		stackPointers[0]=stack.getPosition();
 		log2address=stackPointers[0]==0?MAX_BITS_PER_POINTER:Utils.bitsToEncode(stackPointers[0]);
 		stackPointers[1]=stack.read(log2address);
 		hasBeenExtended=stack.read(1)==1?true:false;
 		hasBeenStolen=stack.read(1)==1?true:false;
 		length=stack.read(log2bwtLength);
-		firstCharacter=(int)stack.read(log2alphabetLength);
 		nPointers=(int)stack.read(BITS_TO_ENCODE_MAX_POINTERS);
-		nIntervals=(int)stack.read(BITS_TO_ENCODE_MAX_INTERVALS);
-		if (hasBeenExtended||hasBeenStolen) stack.setPosition(stack.getPosition()+
-															  (nPointers-MIN_POINTERS)*log2address+
-															  nIntervals*log2bwtLength*2);
-		else readBody(stack);
+		if (fast && hasBeenExtended) stack.setPosition( stack.getPosition()+
+			                   		     			    (nPointers-MIN_POINTERS)*log2address );
+		else {
+			for (int i=MIN_POINTERS; i<nPointers; i++) stackPointers[i]=stack.read(log2address);
+		}
 	}
 
 
 	/**
-	 * Assume that the pointer in $stack$ is currently at the beginning of this substring
-	 * $v$. The procedure advances the pointer to the beginning of the following substring
-	 * while reading the minimum possible amount of information.
+	 * @param fast skips $bwtIntervals$ if $hasBeenStolen=TRUE$.
 	 */
-	protected void skip(Stream stack) {
-		stackPointers[0]=stack.getPosition();
-		log2address=stackPointers[0]==0?MAX_BITS_PER_POINTER:Utils.bitsToEncode(stackPointers[0]);
-		stack.setPosition(stack.getPosition()+
-						  log2address+
-						  1+1+
-						  log2bwtLength+
-						  log2alphabetLength);
-		nPointers=(int)stack.read(BITS_TO_ENCODE_MAX_POINTERS);
+	private final void readTail(Stream stack, boolean fast) {
+		firstCharacter=(int)stack.read(log2alphabetLength);
 		nIntervals=(int)stack.read(BITS_TO_ENCODE_MAX_INTERVALS);
-		stack.setPosition(stack.getPosition()+
-						  (nPointers-MIN_POINTERS)*log2address+
-						  nIntervals*log2bwtLength*2);
+		if (fast && hasBeenStolen) stack.setPosition( stack.getPosition()+
+			                   						  nIntervals*log2bwtLength*2 );
+		else {
+			for (int i=0; i<nIntervals; i++) {
+				bwtIntervals[i][0]=stack.read(log2bwtLength);
+				bwtIntervals[i][1]=stack.read(log2bwtLength);
+			}
+		}
 	}
+
+
+	protected void readHeadPrime(Stream stack, boolean fast) { }
+
+
+	protected void readTailPrime(Stream stack, boolean fast) { }
 
 
 	/**
 	 * Removes $serialized(v)$ from the top of the stack, assuming that $v$ has already
 	 * been deserialized and that $serialized(v)$ is indeed at the top of the stack.
-	 * At the end of the procedure, the pointer of $stack$ is located at the first bit of
-	 * the previous serialized substring.
+	 *
+	 * @param justTail removes just TAIL and TAIL'.
 	 */
-	protected void pop(Stream stack) {
-		stack.pop(nIntervals*log2bwtLength*2+
-				  log2address*(nPointers-MIN_POINTERS)+
-				  BITS_TO_ENCODE_MAX_INTERVALS+
-				  BITS_TO_ENCODE_MAX_POINTERS+
-				  log2alphabetLength+
-				  log2bwtLength+
-				  1+
-				  1+
-				  log2address);
-		stack.setPosition(stackPointers[1]);
+	protected final void pop(Stream stack, boolean justTail) {
+		if (!hasBeenExtended) {
+			popTailPrime(stack);
+			popTail(stack);
+		}
+		if (!justTail) {
+			popHeadPrime(stack);
+			popHead(stack);
+		}
 	}
+
+
+	private final void popTail(Stream stack) {
+		stack.pop( nIntervals*log2bwtLength*2+
+				   BITS_TO_ENCODE_MAX_INTERVALS+
+		           log2alphabetLength );
+	}
+
+
+	private final void popHead(Stream stack) {
+		stack.pop( log2address*(nPointers-MIN_POINTERS)+
+		           BITS_TO_ENCODE_MAX_POINTERS+
+		           log2bwtLength+
+		           1+
+		           1+
+		           log2address );
+	}
+
+
+	protected void popTailPrime(Stream stack) { }
+
+
+	protected void popHeadPrime(Stream stack) { }
 
 
 	/**
 	 * Sets $hasBeenExtended=true$ in the serialized representation of $v$ in $stack$,
-	 * but not in this object. Then, the pointer of $stack$ is restored to its initial
+	 * but not in this object. The pointer of $stack$ is then restored to its initial
 	 * state.
 	 */
 	protected final void markAsExtended(Stream stack) {
@@ -392,7 +441,7 @@ public class Substring {
 
 	/**
 	 * Sets $hasBeenStolen=true$ in the serialized representation of $v$ in $stack$,
-	 * but not in this object. Then, the pointer of $stack$ is restored to its initial
+	 * but not in this object. Then, the pointer of $stack$ is restored to its original
 	 * state.
 	 */
 	protected final void markAsStolen(Stream stack) {
@@ -402,6 +451,11 @@ public class Substring {
 	}
 
 }
+
+
+
+
+
 
 
 
@@ -442,3 +496,25 @@ public class Substring {
 			   (nIntervals<<1)*log2bwtLength;
 	}
 */
+
+/**
+	 * Assume that the pointer in $stack$ is currently at the beginning of this substring
+	 * $v$. The procedure advances the pointer to the beginning of the following substring
+	 * while reading the minimum possible amount of information.
+	 */
+/*	protected void skip(Stream stack) {
+		stackPointers[0]=stack.getPosition();
+		log2address=stackPointers[0]==0?MAX_BITS_PER_POINTER:Utils.bitsToEncode(stackPointers[0]);
+		stack.setPosition(stack.getPosition()+
+						  log2address+
+						  1+1+
+						  log2bwtLength+
+						  log2alphabetLength);
+		nPointers=(int)stack.read(BITS_TO_ENCODE_MAX_POINTERS);
+		nIntervals=(int)stack.read(BITS_TO_ENCODE_MAX_INTERVALS);
+		stack.setPosition(stack.getPosition()+
+						  (nPointers-MIN_POINTERS)*log2address+
+						  nIntervals*log2bwtLength*2);
+	}
+*/
+

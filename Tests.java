@@ -154,6 +154,144 @@ public class Tests {
 
 
 
+
+
+
+
+	private static final boolean test_simpleStream() {
+		final int N_ELEMENTS = 10000;
+		final int N_ITERATIONS = 100;
+		final int MAX_INT = 100;
+		int i, j, k, t, r, b, position, region, cell, offset;
+		int[] numbers = new int[N_ELEMENTS];
+		long nElements, read;
+		Constants constants = new Constants();
+		SimpleStream stream = new SimpleStream(constants.LONGS_PER_REGION);
+		XorShiftStarRandom random = new XorShiftStarRandom();
+
+		for (t=0; t<N_ITERATIONS; t++) {
+			// Testing $push$
+			stream.clear(true);
+			nElements=0;
+			for (i=0; i<N_ELEMENTS; i++) {
+				r=random.nextInt(MAX_INT);
+				numbers[i]=r;
+				stream.push(r);
+				nElements++;
+			}
+			if (stream.nElements()!=nElements) {
+				System.err.println("Error in Stream.push: pushed "+stream.nElements()+" elements rather than "+nElements);
+				return false;
+			}
+			for (i=0; i<N_ELEMENTS; i++) {
+				read=stream.getElementAt(i);
+				if (read!=numbers[i]) {
+					System.err.println("Error in Stream.push: pushed "+read+" rather than "+numbers[i]+" at position "+i);
+					return false;
+				}
+			}
+
+			// Testing $pop$
+			nElements=stream.nElements();
+			j=random.nextInt(N_ELEMENTS);
+			for (i=N_ELEMENTS-1; i>=j; i--) {
+				stream.pop();
+				nElements--;
+			}
+			if (stream.nElements()!=nElements) {
+				System.err.println("Error in Stream.pop: wrong number of elements popped.");
+				return false;
+			}
+			for (i=0; i<j; i++) {
+				read=stream.getElementAt(i);
+				if (read!=numbers[i]) {
+					System.err.println("Error in Stream.read: wrong element popped.");
+					return false;
+				}
+			}
+			for (i=j; i<N_ELEMENTS; i++) stream.push(numbers[i]);  // Pushing popped values back
+
+			// Testing $binarySearch$
+			for (int x=0; x<N_ELEMENTS; x++) numbers[x]=x;
+			stream.clear(true);
+			for (int x=0; x<N_ELEMENTS; x++) stream.push(numbers[x]);
+			for (int x=0; x<N_ELEMENTS/2; x++) {
+				int p = random.nextInt(N_ELEMENTS);
+				int value = numbers[p];
+				long returnedP = stream.binarySearch(0,N_ELEMENTS,value);
+				if (returnedP!=p) {
+					System.err.println("Error in Stream.binarySearch: returnedPosition="+returnedP+" real position="+p);
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
+
+	private static final boolean test_rigidStream() {
+		final int N_ELEMENTS = 1000000;
+		final int N_ITERATIONS = 100;
+		final int MAX_INT = 100;
+		final int bpi = Utils.closestPowerOfTwo(Utils.log2(MAX_INT));
+		int i, j, k, t, r, b, position, region, cell, offset;
+		int[] numbers = new int[N_ELEMENTS];
+		long nBits, read;
+		Constants constants = new Constants();
+		RigidStream stream = new RigidStream(bpi,constants.LONGS_PER_REGION);
+		XorShiftStarRandom random = new XorShiftStarRandom();
+
+		for (t=0; t<N_ITERATIONS; t++) {
+			// Testing $push$
+			stream.clear(true);
+			nBits=0;
+			for (i=0; i<N_ELEMENTS; i++) {
+				r=random.nextInt(MAX_INT);
+				numbers[i]=r;
+				stream.push(r);
+				nBits+=bpi;
+			}
+			if (stream.nBits()!=nBits) {
+				System.err.println("Error in Stream.push: pushed "+stream.nBits()+" bits rather than "+nBits);
+				return false;
+			}
+			for (i=0; i<N_ELEMENTS; i++) {
+				read=stream.getElementAt(i);
+				if (read!=numbers[i]) {
+					System.err.println("Error in Stream.push: pushed "+read+" rather than "+numbers[i]);
+					return false;
+				}
+			}
+
+			// Testing $pop$
+			nBits=stream.nBits();
+			j=random.nextInt(N_ELEMENTS);
+			for (i=N_ELEMENTS-1; i>=j; i--) {
+				stream.pop();
+				nBits-=bpi;
+			}
+			if (stream.nBits()!=nBits) {
+				System.err.println("Error in Stream.pop: wrong number of bits popped.");
+				return false;
+			}
+			for (i=0; i<j; i++) {
+				read=stream.getElementAt(i);
+				if (read!=numbers[i]) {
+					System.err.println("Error in Stream.read: wrong bit sequences popped.");
+					return false;
+				}
+			}
+			for (i=j; i<N_ELEMENTS; i++) stream.push(numbers[i]);  // Pushing popped values back
+		}
+		return true;
+	}
+
+
+
+	private static HashSet<String> iteratorSubstrings;
+	private static HashSet<StringWithBorder> iteratorSubstringsWithBorder;
+
+
 	/**
 	 * Set $blockSize=2;$ in the constructor of $SubstringIterator$ when testing with
 	 * small strings.
@@ -301,140 +439,6 @@ System.out.println();
 			}
 		}
 	}
-
-
-	private static final boolean test_simpleStream() {
-		final int N_ELEMENTS = 10000;
-		final int N_ITERATIONS = 100;
-		final int MAX_INT = 100;
-		int i, j, k, t, r, b, position, region, cell, offset;
-		int[] numbers = new int[N_ELEMENTS];
-		long nElements, read;
-		Constants constants = new Constants();
-		SimpleStream stream = new SimpleStream(constants.LONGS_PER_REGION);
-		XorShiftStarRandom random = new XorShiftStarRandom();
-
-		for (t=0; t<N_ITERATIONS; t++) {
-			// Testing $push$
-			stream.clear(true);
-			nElements=0;
-			for (i=0; i<N_ELEMENTS; i++) {
-				r=random.nextInt(MAX_INT);
-				numbers[i]=r;
-				stream.push(r);
-				nElements++;
-			}
-			if (stream.nElements()!=nElements) {
-				System.err.println("Error in Stream.push: pushed "+stream.nElements()+" elements rather than "+nElements);
-				return false;
-			}
-			for (i=0; i<N_ELEMENTS; i++) {
-				read=stream.getElementAt(i);
-				if (read!=numbers[i]) {
-					System.err.println("Error in Stream.push: pushed "+read+" rather than "+numbers[i]+" at position "+i);
-					return false;
-				}
-			}
-
-			// Testing $pop$
-			nElements=stream.nElements();
-			j=random.nextInt(N_ELEMENTS);
-			for (i=N_ELEMENTS-1; i>=j; i--) {
-				stream.pop();
-				nElements--;
-			}
-			if (stream.nElements()!=nElements) {
-				System.err.println("Error in Stream.pop: wrong number of elements popped.");
-				return false;
-			}
-			for (i=0; i<j; i++) {
-				read=stream.getElementAt(i);
-				if (read!=numbers[i]) {
-					System.err.println("Error in Stream.read: wrong element popped.");
-					return false;
-				}
-			}
-			for (i=j; i<N_ELEMENTS; i++) stream.push(numbers[i]);  // Pushing popped values back
-
-			// Testing $binarySearch$
-			for (int x=0; x<N_ELEMENTS; x++) numbers[x]=x;
-			stream.clear(true);
-			for (int x=0; x<N_ELEMENTS; x++) stream.push(numbers[x]);
-			for (int x=0; x<N_ELEMENTS/2; x++) {
-				int p = random.nextInt(N_ELEMENTS);
-				int value = numbers[p];
-				long returnedP = stream.binarySearch(0,N_ELEMENTS,value);
-				if (returnedP!=p) {
-					System.err.println("Error in Stream.binarySearch: returnedPosition="+returnedP+" real position="+p);
-					return false;
-				}
-			}
-		}
-		return true;
-	}
-
-
-	private static final boolean test_rigidStream() {
-		final int N_ELEMENTS = 1000000;
-		final int N_ITERATIONS = 100;
-		final int MAX_INT = 100;
-		final int bpi = Utils.closestPowerOfTwo(Utils.log2(MAX_INT));
-		int i, j, k, t, r, b, position, region, cell, offset;
-		int[] numbers = new int[N_ELEMENTS];
-		long nBits, read;
-		Constants constants = new Constants();
-		RigidStream stream = new RigidStream(bpi,constants.LONGS_PER_REGION);
-		XorShiftStarRandom random = new XorShiftStarRandom();
-
-		for (t=0; t<N_ITERATIONS; t++) {
-			// Testing $push$
-			stream.clear(true);
-			nBits=0;
-			for (i=0; i<N_ELEMENTS; i++) {
-				r=random.nextInt(MAX_INT);
-				numbers[i]=r;
-				stream.push(r);
-				nBits+=bpi;
-			}
-			if (stream.nBits()!=nBits) {
-				System.err.println("Error in Stream.push: pushed "+stream.nBits()+" bits rather than "+nBits);
-				return false;
-			}
-			for (i=0; i<N_ELEMENTS; i++) {
-				read=stream.getElementAt(i);
-				if (read!=numbers[i]) {
-					System.err.println("Error in Stream.push: pushed "+read+" rather than "+numbers[i]);
-					return false;
-				}
-			}
-
-			// Testing $pop$
-			nBits=stream.nBits();
-			j=random.nextInt(N_ELEMENTS);
-			for (i=N_ELEMENTS-1; i>=j; i--) {
-				stream.pop();
-				nBits-=bpi;
-			}
-			if (stream.nBits()!=nBits) {
-				System.err.println("Error in Stream.pop: wrong number of bits popped.");
-				return false;
-			}
-			for (i=0; i<j; i++) {
-				read=stream.getElementAt(i);
-				if (read!=numbers[i]) {
-					System.err.println("Error in Stream.read: wrong bit sequences popped.");
-					return false;
-				}
-			}
-			for (i=j; i<N_ELEMENTS; i++) stream.push(numbers[i]);  // Pushing popped values back
-		}
-		return true;
-	}
-
-
-
-	private static HashSet<String> iteratorSubstrings;
-	private static HashSet<StringWithBorder> iteratorSubstringsWithBorder;
 
 
 	/**
@@ -631,10 +635,6 @@ if (str.equals("0")) {
 		System.out.println();
 	}
 }
-
-
-
-
 if (str.equals("00")) {
 	synchronized(iteratorSubstringsWithBorder) {
 		System.out.println(Thread.currentThread()+">00----------------howWasInit="+howWasInit);
@@ -656,9 +656,6 @@ if (str.equals("00")) {
 		stack.setPosition(backupPointer);
 	}
 }
-
-
-
 if (str.equals("000")) {
 	synchronized(iteratorSubstringsWithBorder) {
 		System.out.println(Thread.currentThread()+">000----------------howWasInit="+howWasInit+" lbp="+lbp+" suffix="+suff+" rl="+rl);
@@ -798,7 +795,7 @@ if (str.equals("000")) {
 			for (i=0; i<N_TESTS; i++) {
 				index=random.nextInt(N_ELEMENTS);
 				stack.setPosition(substrings[index].stackPointers[0]);
-				w.read(stack);
+				w.read(stack,false,false);
 				if (!w.equals(substrings[index])) {
 					System.err.println("Error in reading "+index+"th string. Real string:");
 					System.err.println(substrings[index]);
@@ -809,7 +806,7 @@ if (str.equals("000")) {
 					return false;
 				}
 				stack.setPosition(substrings[index].stackPointers[0]);
-				w.readFast(stack);
+				w.read(stack,true,true);
 				if (!w.occurs()||!w.equals(substrings[index])) {
 					System.err.println("Error in readFast");
 					return false;
@@ -820,12 +817,12 @@ if (str.equals("000")) {
 			for (i=0; i<N_TESTS; i++) {
 				index=random.nextInt(N_ELEMENTS);
 				stack.setPosition(substrings[N_ELEMENTS-1].stackPointers[0]);
-				for (j=N_ELEMENTS-1; j>index; j--) substrings[j].pop(stack);
+				for (j=N_ELEMENTS-1; j>index; j--) substrings[j].pop(stack,false);
 				if (stack.getPosition()!=substrings[index].stackPointers[0]) {
 					System.err.println("Error in pop");
 					return false;
 				}
-				w.read(stack);
+				w.read(stack,false,false);
 				if (!w.equals(substrings[index])) {
 					System.err.println("Error in pop");
 					return false;
@@ -1187,13 +1184,13 @@ System.out.println();
 			for (i=0; i<N_TESTS; i++) {
 				index=random.nextInt(N_ELEMENTS);
 				stack.setPosition(substrings[index].stackPointers[0]);
-				w.read(stack);
+				w.read(stack,false,false);
 				if (!w.occurs()||!w.equals(substrings[index])) {
 					System.err.println("Error in read");
 					return false;
 				}
 				stack.setPosition(substrings[index].stackPointers[0]);
-				w.readFast(stack);
+				w.read(stack,true,true);
 				if (!w.occurs()||!w.equals(substrings[index])) {
 					System.err.println("Error in readFast");
 					return false;
@@ -1204,12 +1201,12 @@ System.out.println();
 			for (i=0; i<N_TESTS; i++) {
 				index=random.nextInt(N_ELEMENTS);
 				stack.setPosition(substrings[N_ELEMENTS-1].stackPointers[0]);
-				for (j=N_ELEMENTS-1; j>index; j--) substrings[j].pop(stack);
+				for (j=N_ELEMENTS-1; j>index; j--) substrings[j].pop(stack,false);
 				if (stack.getPosition()!=substrings[index].stackPointers[0]) {
 					System.err.println("Error in pop");
 					return false;
 				}
-				w.read(stack);
+				w.read(stack,false,false);
 				if (!w.equals(substrings[index])) {
 					System.err.println("Error in pop");
 					return false;
