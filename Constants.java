@@ -1,13 +1,11 @@
 public class Constants {
 
-	Runtime runtime = Runtime.getRuntime();
-
 
 	/**
 	 * Number of threads to be used in all parallel steps. Influences the number of blocks
 	 * in the constructor of $SubstringIterator$.
 	 */
-	public int N_THREADS = runtime.availableProcessors();
+	public static int N_THREADS = Runtime.getRuntime().availableProcessors();
 
 
 
@@ -15,9 +13,9 @@ public class Constants {
 	/**
 	 * Configurable parameters used for tuning $sort$ and $buildLCPArray$
 	 */
-	public int QUICKSORT_HEAPSORT_SCALE = 2;
-	public int STOP_QUICKSORT_AT_SIZE = 40;
-	public int DISTINGUISHING_PREFIX = 3;
+	public static int QUICKSORT_HEAPSORT_SCALE = 2;
+	public static int STOP_QUICKSORT_AT_SIZE = 40;
+	public static int DISTINGUISHING_PREFIX = 3;
 
 
 
@@ -28,7 +26,7 @@ public class Constants {
 	 * by $string$). Inversely proportional to the number of blocks and to construction
 	 * time. Does not affect the time of $run$ if substrings have just one interval.
 	 */
-	public long MAX_MEMORY = 7000000;
+	public static long MAX_MEMORY = 7000000;
 
 
 
@@ -38,14 +36,14 @@ public class Constants {
 	 * Number of longs allocated to each region of the stack (a power of two).
 	 * Balances between space and time.
 	 */
-	public int LONGS_PER_REGION = 2;
-	public int LONGS_PER_REGION_CHARACTERSTACK = LONGS_PER_REGION;  // Must be tuned experimentally
-	public int LONGS_PER_REGION_POINTERSTACK = LONGS_PER_REGION;  // Must be tuned experimentally
+	public static int LONGS_PER_REGION = 2;
+	public static int LONGS_PER_REGION_CHARACTERSTACK = LONGS_PER_REGION;  // Must be tuned experimentally
+	public static int LONGS_PER_REGION_POINTERSTACK = LONGS_PER_REGION;  // Must be tuned experimentally
 
 	/**
 	 * Number of work-stealing attempts performed by each thread before terminating.
 	 */
-	public int N_STEALING_ATTEMPTS = 10;
+	public static int N_STEALING_ATTEMPTS = 10;
 
 	/**
 	 * Only strings of length at most $MAX_STRING_LENGTH_FOR_SPLIT$ are stolen from
@@ -54,7 +52,7 @@ public class Constants {
 	 * of the donor stack, but it has the advantage of increasing the granularity of the
 	 * stealing, and thus of improving load balancing \cite{rao1987parallel}.
 	 */
-	public int MAX_STRING_LENGTH_FOR_SPLIT = 3;
+	public static int MAX_STRING_LENGTH_FOR_SPLIT = 3;
 
 	/**
 	 * The stack of the donor thread is split iff it contains at least
@@ -63,7 +61,7 @@ public class Constants {
 	 * Increasing this value makes the receiver less likely to steal from a thread, but it
 	 * gives more material to the receiver after stealing.
 	 */
-	public int DONOR_STACK_LOWERBOUND = 2;
+	public static int DONOR_STACK_LOWERBOUND = 2;
 
 
 

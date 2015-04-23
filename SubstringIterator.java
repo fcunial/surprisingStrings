@@ -31,7 +31,6 @@ public class SubstringIterator {
 	private final int alphabetLength, log2alphabetLength;
 	private int nBlocks;
 	private Substring SUBSTRING_CLASS;  // Subclass of $Substring$ to be used during navigation
-	private Constants constants;
 
 	/**
 	 * BWT index
@@ -53,14 +52,13 @@ public class SubstringIterator {
 	/**
 	 * @param substringClass subclass of $Substring$ to be used during navigation.
 	 */
-	public SubstringIterator(IntArray string, int[] alphabet, int alphabetLength, Substring substringClass, Constants constants) {
-		this.constants=constants;
+	public SubstringIterator(IntArray string, int[] alphabet, int alphabetLength, Substring substringClass) {
 		final long stringLength = string.length();
 		final int log2stringLength = Utils.log2(stringLength);
 		final int log2stringLengthPlusOne = Utils.log2(stringLength+1);
 		this.alphabetLength=alphabetLength;
 		log2alphabetLength=Utils.log2(alphabetLength);
-		long blockSize = Suffixes.blockwiseBWT_getBlockSize(stringLength,log2stringLength,log2alphabetLength,constants);
+		long blockSize = Suffixes.blockwiseBWT_getBlockSize(stringLength,log2stringLength,log2alphabetLength);
 blockSize=2;
 		long nb = Utils.divideAndRoundUp(stringLength,blockSize);  // This value is just an upper bound: $Suffixes.blockwiseBWT$ will set the effective number of blocks.
 		if (nb<4) nBlocks=4;
@@ -71,7 +69,7 @@ blockSize=2;
 		sharp = new long[3];
 		IntArray[] localBlockCounts = new IntArray[nBlocks];
 		IntArray bitVector = new IntArray(stringLength+1,1,true);
-		Suffixes.blockwiseBWT(string,alphabet,alphabetLength,log2alphabetLength,blockSize,null,waveletTrees,blockStarts,bitVector,localBlockCounts,sharp,constants);
+		Suffixes.blockwiseBWT(string,alphabet,alphabetLength,log2alphabetLength,blockSize,null,waveletTrees,blockStarts,bitVector,localBlockCounts,sharp);
 		blockBoundaries = new Rank9(bitVector);
 		bitVector.deallocate(); bitVector=null;
 		nBlocks=(int)( blockStarts.length() );  // Setting the effective number of blocks
@@ -129,13 +127,16 @@ blockSize=2;
 	 * cell 2: as in cell 1, but only for strings with $|v| \leq maxStringLengthToReport$.
 	 * @param extensionBuffer reused memory area that contains messages for initializing
 	 * the left extensions of $w$. We assume $buffer[i]=-1$ for all $i$. The procedure
-	 * returns $buffer$ to its input state before terminating.
+	 * restores $buffer$ to its input state before terminating.
+	 * @param shouldBeExtendedLeft reused memory area with at least $alphabetLength+1$
+	 * cells, initialized to FALSE. This procedure restores the vector to its input
+	 * state before terminating.
 	 */
-	private final void extendLeft(Stream stack, RigidStream characterStack, SimpleStream pointerStack, Substring w, Substring[] leftExtensions, Position[] positions, long[][] multirankStack, long[][] multirankOutput, long[] multirankOnes, int maxStringLengthToReport, long[] out, long[] extensionBuffer) {
+	private final void extendLeft(Stream stack, RigidStream characterStack, SimpleStream pointerStack, Substring w, Substring[] leftExtensions, Position[] positions, long[][] multirankStack, long[][] multirankOutput, long[] multirankOnes, int maxStringLengthToReport, long[] out, long[] extensionBuffer, boolean[] shouldBeExtendedLeft) {
 		final boolean isShort;
 		boolean pushed;
-		int i, j, c, p, windowFirst, windowSize, block, previousBlock, nPositions;
-		long pos, previous;
+		int i, j, c, p, windowFirst, windowSize, block, previousBlock, nPositions, maxExtension;
+		long pos, previous, frequency, maxFrequency;
 		Substring extension;
 
 		// Reading the top of $stack$
@@ -207,27 +208,53 @@ blockSize=2;
 			for (i=0; i<windowSize; i++) leftExtensions[c+1].bwtIntervals[positions[windowFirst+i].row][positions[windowFirst+i].column]=C[c]+(blockCounts[previousBlock].getElementAt(c)+multirankOutput[c][i])+(positions[windowFirst+i].column==0?0:-1);
 		}
 
-		// Signalling to the left-extensions of $w$, and pushing them onto $stack$.
+		// Signaling to the left-extensions of $w$, and pushing them onto $stack$ using
+		// the stack trick.
 		w.pop(stack,true);  // Removing TAIL and TAIL' from the stack
 		w.markAsExtended(stack);
 		if (w.length>0) {
 			characterStack.push(w.firstCharacter);  // Needed for calls to $Substring.getSequence()$ inside $Substring.visited()$ to be successful
 			pointerStack.push(w.stackPointers[0]);
 		}
-		isShort=w.length+1<=maxStringLengthToReport;
 		extension=null; pushed=false;
 		w.fillBuffer(extensionBuffer);
-		previous=w.stackPointers[0];
+		maxFrequency=0; maxExtension=-1;
 		for (c=0; c<alphabetLength+1; c++) {
 			extension=leftExtensions[c];
-			if (extension.occurs()) {
+			frequency=extension.frequency();
+			if (frequency>0) {
 				extension.init(w,c-1,stack,characterStack,pointerStack,extensionBuffer);
 				extension.visited(stack,characterStack,pointerStack);
 				if (extension.shouldBeExtendedLeft()) {
+					pushed=true;
+					shouldBeExtendedLeft[c]=true;
+					if (frequency>maxFrequency) {
+						maxFrequency=frequency;
+						maxExtension=c;
+					}
+				}
+			}
+		}
+		previous=w.stackPointers[0];
+		isShort=w.length+1<=maxStringLengthToReport;
+		if (pushed) {
+			// Pushing the most frequent left-extension first
+			extension=leftExtensions[maxExtension];
+			extension.stackPointers[1]=previous;
+			extension.push(stack);
+			previous=extension.stackPointers[0];
+			out[0]++; out[1]++;
+			if (isShort) out[2]++;
+			// Pushing all other left-extensions
+			for (c=0; c<alphabetLength+1; c++) {
+				if (shouldBeExtendedLeft[c]) {
+					shouldBeExtendedLeft[c]=false;  // Cleaning up $shouldBeExtendedLeft$
+					if (c==maxExtension) continue;
+					extension=leftExtensions[c];
 					extension.stackPointers[1]=previous;
 					extension.push(stack);
 					previous=extension.stackPointers[0];
-					out[0]++; out[1]++; pushed=true;
+					out[0]++; out[1]++;
 					if (isShort) out[2]++;
 				}
 			}
@@ -298,10 +325,10 @@ blockSize=2;
 	public void run() {
 		int i, nCharacters;
 		long previous;
-		SubstringIteratorThread[] threads = new SubstringIteratorThread[constants.N_THREADS];
+		SubstringIteratorThread[] threads = new SubstringIteratorThread[Constants.N_THREADS];
 		AtomicInteger donorGenerator = new AtomicInteger();
-		CountDownLatch latch = new CountDownLatch(constants.N_THREADS);
-		for (i=0; i<constants.N_THREADS; i++) threads[i] = new SubstringIteratorThread(threads,i,donorGenerator,latch);
+		CountDownLatch latch = new CountDownLatch(Constants.N_THREADS);
+		for (i=0; i<Constants.N_THREADS; i++) threads[i] = new SubstringIteratorThread(threads,i,donorGenerator,latch);
 
 		// Initializing the stack of $threads[0]$ with an artificial substring followed by
 		// $\epsilon$. The artificial substring is pushed in order to detect when the
@@ -319,7 +346,7 @@ blockSize=2;
 		threads[0].nShortStringsNotExtended=0;
 
 		// Launching all threads
-		for (i=0; i<constants.N_THREADS; i++) threads[i].start();
+		for (i=0; i<Constants.N_THREADS; i++) threads[i].start();
 		try { latch.await(); }
 		catch(InterruptedException e) {
 			e.printStackTrace();
@@ -401,11 +428,11 @@ blockSize=2;
 			this.threadID=threadID;
 			this.donorGenerator=donorGenerator;
 			this.latch=latch;
-			stack = new Stream(constants.LONGS_PER_REGION);
-			characterStack = new RigidStream(log2alphabetLength,constants.LONGS_PER_REGION_CHARACTERSTACK);
-			pointerStack = new SimpleStream(constants.LONGS_PER_REGION_POINTERSTACK);
-			translatorFrom = new SimpleStream(constants.LONGS_PER_REGION_POINTERSTACK);
-			translatorTo = new SimpleStream(constants.LONGS_PER_REGION_POINTERSTACK);
+			stack = new Stream(Constants.LONGS_PER_REGION);
+			characterStack = new RigidStream(log2alphabetLength,Constants.LONGS_PER_REGION_CHARACTERSTACK);
+			pointerStack = new SimpleStream(Constants.LONGS_PER_REGION_POINTERSTACK);
+			translatorFrom = new SimpleStream(Constants.LONGS_PER_REGION_POINTERSTACK);
+			translatorTo = new SimpleStream(Constants.LONGS_PER_REGION_POINTERSTACK);
 		}
 
 
@@ -434,16 +461,18 @@ blockSize=2;
 			long[] extendLeftOutput = new long[3];
 			long[] extensionBuffer = new long[alphabetLength+1];
 			for (i=0; i<=alphabetLength; i++) extensionBuffer[i]=-1;
+			boolean[] shouldBeExtendedLeft = new boolean[alphabetLength+1];
+			for (i=0; i<=alphabetLength; i++) shouldBeExtendedLeft[i]=false;
 			Substring w = SUBSTRING_CLASS.getInstance();
 
 			isAlive=true;
-			if (constants.N_THREADS>1 && nStringsNotExtended==0) stealWork();
+			if (Constants.N_THREADS>1 && nStringsNotExtended==0) stealWork();
 			while (nStringsNotExtended>0) {
 				// Exhausting the current stack
 				while (true) {
 					synchronized(this) {
 						if (nStringsNotExtended>0) {
-							extendLeft(stack,characterStack,pointerStack,w,leftExtensions,positions,multirankStack,multirankOutput,multirankOnes,constants.MAX_STRING_LENGTH_FOR_SPLIT,extendLeftOutput,extensionBuffer);
+							extendLeft(stack,characterStack,pointerStack,w,leftExtensions,positions,multirankStack,multirankOutput,multirankOnes,Constants.MAX_STRING_LENGTH_FOR_SPLIT,extendLeftOutput,extensionBuffer,shouldBeExtendedLeft);
 							nStrings+=extendLeftOutput[0];
 							nStringsNotExtended+=extendLeftOutput[1];
 							nShortStringsNotExtended+=extendLeftOutput[2];
@@ -452,11 +481,17 @@ blockSize=2;
 					}
 				}
 				// Trying to get a new stack
-				if (constants.N_THREADS>1) stealWork();
+				if (Constants.N_THREADS>1) stealWork();
 			}
 			// Terminating if unable to steal work
 			isAlive=false;
 			latch.countDown();
+			for (i=0; i<alphabetLength+1; i++) {
+				leftExtensions[i].deallocate();
+				leftExtensions[i]=null;
+			}
+			for (i=0; i<maxPositions; i++) positions[i]=null;
+			w.deallocate();
 			deallocate();
 		}
 
@@ -470,15 +505,15 @@ blockSize=2;
 			long copied, toBeCopied;
 			Substring w = SUBSTRING_CLASS.getInstance();
 
-			for (i=0; i<constants.N_STEALING_ATTEMPTS; i++) {
+			for (i=0; i<Constants.N_STEALING_ATTEMPTS; i++) {
 				do {
 					d=donorGenerator.getAndIncrement()%nThreads;
 					donor=threads[d];
 				}
 				while (d==threadID);
-				if (!donor.isAlive || donor.nShortStringsNotExtended<constants.DONOR_STACK_LOWERBOUND) continue;  // Not synchronized: this is just a guess.
+				if (!donor.isAlive || donor.nShortStringsNotExtended<Constants.DONOR_STACK_LOWERBOUND) continue;  // Not synchronized: this is just a guess.
 				synchronized(donor) {
-					if (!donor.isAlive || donor.nShortStringsNotExtended<constants.DONOR_STACK_LOWERBOUND) continue;  // Checking again before stealing
+					if (!donor.isAlive || donor.nShortStringsNotExtended<Constants.DONOR_STACK_LOWERBOUND) continue;  // Checking again before stealing
 					donorStack=donor.stack;
 					donorStackLength=donorStack.nBits();
 					donorCharacterStack=donor.characterStack;

@@ -41,6 +41,15 @@ public class BernoulliSubstring extends BorderSubstring {
 	}
 
 
+	protected void deallocate() {
+		super.deallocate();
+		if (tmpString!=null) {
+			tmpString.deallocate();
+			tmpString=null;
+		}
+	}
+
+
 	protected Substring getInstance() {
 		return new BernoulliSubstring(alphabetLength,log2alphabetLength,bwtLength,log2bwtLength);
 	}

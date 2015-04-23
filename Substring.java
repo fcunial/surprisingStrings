@@ -238,12 +238,12 @@ public class Substring {
 
 
 	/**
-	 * @return true iff $v$ occurs in $s$
+	 * @return the number of occurrences of $v$ in $s$
 	 */
-	protected boolean occurs() {
+	protected long frequency() {
 		// We assume that the rest of the code is correct and that $bwtIntervals[0][0]$
 		// and $bwtIntervals[0][1]$ are valid.
-		return bwtIntervals[0][1]>=bwtIntervals[0][0];
+		return bwtIntervals[0][1]>=bwtIntervals[0][0]?bwtIntervals[0][1]-bwtIntervals[0][0]+1:0;
 	}
 
 

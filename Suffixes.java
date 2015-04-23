@@ -18,14 +18,14 @@ public class Suffixes {
 	 * longer $array$s, it would be enough to replace $IntArray$ with a more general
 	 * version based on a \emph{matrix} of $Long$s, like $Stream$.
 	 */
-	public static final void sort(IntArray array, IntArray string, XorShiftStarRandom random, Constants constants) {
+	public static final void sort(IntArray array, IntArray string, XorShiftStarRandom random) {
 		final long nElements = array.length();
 		long i, j;
 		IntArray cache;
 
 		cache = new IntArray(nElements,64,true);
 		for (i=0; i<nElements; i++) cache.setElementAt(i,string.load63(array.getElementAt(i)<<string.log2BitsPerInt));
-		quicksort(array,0,nElements,0,0,string,cache,constants.QUICKSORT_HEAPSORT_SCALE*Utils.log2(nElements),constants.STOP_QUICKSORT_AT_SIZE,random);
+		quicksort(array,0,nElements,0,0,string,cache,Constants.QUICKSORT_HEAPSORT_SCALE*Utils.log2(nElements),Constants.STOP_QUICKSORT_AT_SIZE,random);
 		cache=null;
 	}
 
@@ -462,13 +462,13 @@ public class Suffixes {
 	 * @param out we assume that any LCP length can be encoded in $out.bitsPerInt-1$ bits,
 	 * and that $out.bitsPerInt \leq 64$.
 	 */
-	public static final void buildLCPArray(long suffix, IntArray string, IntArray out, Constants constants) {
+	public static final void buildLCPArray(long suffix, IntArray string, IntArray out) {
 		final long SELECT_SIGN = Utils.MSB_LONG_ONE>>>(64-out.bitsPerInt);
 		final long SELECT_LENGTH = 0xFFFFFFFFFFFFFFFFL>>>(64-out.bitsPerInt+1);
 		long i, l, lcp, sign, signPrime, selectSign, selectLength, intervalFirst, intervalLast, intervalSign, stringLengthMinusSuffix, distinguishingPrefix;
 		stringLengthMinusSuffix=string.length()-suffix;
-		if (constants.DISTINGUISHING_PREFIX>stringLengthMinusSuffix) distinguishingPrefix=stringLengthMinusSuffix;
-		else distinguishingPrefix=constants.DISTINGUISHING_PREFIX;
+		if (Constants.DISTINGUISHING_PREFIX>stringLengthMinusSuffix) distinguishingPrefix=stringLengthMinusSuffix;
+		else distinguishingPrefix=Constants.DISTINGUISHING_PREFIX;
 		out.clear();
 
 		out.push(stringLengthMinusSuffix);  // The first entry is never used
@@ -653,7 +653,7 @@ public class Suffixes {
 	 * $sharp[2]$: distance of the sharp sign from the beginning of block $sharp[1]$;
 	 * @return the position of the sharp sign in the BWT of $string$.
 	 */
-	public static final long blockwiseBWT(IntArray string, int[] alphabet, int alphabetLength, int log2alphabetLength, long blockSize, IntArray bwt, HuffmanWaveletTree[] waveletTrees, IntArray blockStarts, IntArray blockBoundaries, IntArray[] localBlockCounts, long[] sharp, Constants constants) {
+	public static final long blockwiseBWT(IntArray string, int[] alphabet, int alphabetLength, int log2alphabetLength, long blockSize, IntArray bwt, HuffmanWaveletTree[] waveletTrees, IntArray blockStarts, IntArray blockBoundaries, IntArray[] localBlockCounts, long[] sharp) {
 		final int log2stringLength, log2stringLengthPlusOne;
 		int i, j, nSplitters, nBits;
 		long splitter, currentBlock, cumulativeSize, blockStart, maxBlockSize;
@@ -677,15 +677,15 @@ public class Suffixes {
 		splitters_byPosition=buildSplitters(stringLength,log2stringLength,blockSize,random);
 		nSplitters=(int)( splitters_byPosition.length() );
 		splitters_bySuffix=splitters_byPosition.clone();
-		sort(splitters_bySuffix,string,random,constants);
+		sort(splitters_bySuffix,string,random);
 
 		// Measuring the size of the blocks induced by splitters
 		binarySearchCache=buildBinarySearchCache(splitters_bySuffix,string);
 		blockSizes = new AtomicLong[nSplitters+1];
 		for (i=0; i<=nSplitters; i++) blockSizes[i] = new AtomicLong();
 		longGenerator = new AtomicLong();
-		latch = new CountDownLatch(constants.N_THREADS);
-		for (i=0; i<constants.N_THREADS; i++) new MeasureBWTBlockThread(blockSizes,longGenerator,latch,splitters_bySuffix,splitters_byPosition,binarySearchCache,string).start();
+		latch = new CountDownLatch(Constants.N_THREADS);
+		for (i=0; i<Constants.N_THREADS; i++) new MeasureBWTBlockThread(blockSizes,longGenerator,latch,splitters_bySuffix,splitters_byPosition,binarySearchCache,string).start();
 		try { latch.await(); }
 		catch(InterruptedException e) {
 			e.printStackTrace();
@@ -733,8 +733,8 @@ public class Suffixes {
 		nBits=log2stringLength<<1;  // The left-shift is necessary to guarantee that there is at least one bit for the sign in each LCP array
 		for (i=0; i<nSplitters; i++) {
 			splitter=splitters.getElementAt(i);
-			lcpArrays[i] = new IntArray(constants.DISTINGUISHING_PREFIX+1,nBits);
-			buildLCPArray(splitter,string,lcpArrays[i],constants);
+			lcpArrays[i] = new IntArray(Constants.DISTINGUISHING_PREFIX+1,nBits);
+			buildLCPArray(splitter,string,lcpArrays[i]);
 		}
 		intGenerator = new AtomicInteger();
 		latch = new CountDownLatch(nSplitters+1);
@@ -742,12 +742,12 @@ public class Suffixes {
 		sharpBlock=null;
 		sharpOffset=null;
 		if (bwt!=null) {
-			for (i=0; i<constants.N_THREADS; i++) new SortBWTBlockThread(intGenerator,sharpPosition,splitters,lcpArrays,string,bwt,blockStarts,latch,maxBlockSize,log2alphabetLength,constants).start();
+			for (i=0; i<Constants.N_THREADS; i++) new SortBWTBlockThread(intGenerator,sharpPosition,splitters,lcpArrays,string,bwt,blockStarts,latch,maxBlockSize,log2alphabetLength).start();
 		}
 		else {
 			sharpBlock = new AtomicInteger();
 			sharpOffset = new AtomicLong();
-			for (i=0; i<constants.N_THREADS; i++) new WaveletBWTBlockThread(intGenerator,sharpPosition,sharpBlock,sharpOffset,splitters,lcpArrays,string,blockStarts,waveletTrees,localBlockCounts,latch,maxBlockSize,alphabet,alphabetLength,log2alphabetLength,constants).start();
+			for (i=0; i<Constants.N_THREADS; i++) new WaveletBWTBlockThread(intGenerator,sharpPosition,sharpBlock,sharpOffset,splitters,lcpArrays,string,blockStarts,waveletTrees,localBlockCounts,latch,maxBlockSize,alphabet,alphabetLength,log2alphabetLength).start();
 		}
 		try { latch.await(); }
 		catch(InterruptedException e) {
@@ -921,14 +921,12 @@ public class Suffixes {
 		private IntArray splitters, string, bwt, blockStarts;
 		private CountDownLatch latch;
 		private IntArray[] lcpArrays;
-		private Constants constants;
 
 		/**
 		 * @param splitters contains a number of splitters that can be represented as an
 		 * $int$.
 		 */
-		public SortBWTBlockThread(AtomicInteger splitterGenerator, AtomicLong sharpPosition, IntArray splitters, IntArray[] lcpArrays, IntArray string, IntArray bwt, IntArray blockStarts, CountDownLatch latch, long maxBlockSize, int log2alphabetLength, Constants constants) {
-			this.constants=constants;
+		public SortBWTBlockThread(AtomicInteger splitterGenerator, AtomicLong sharpPosition, IntArray splitters, IntArray[] lcpArrays, IntArray string, IntArray bwt, IntArray blockStarts, CountDownLatch latch, long maxBlockSize, int log2alphabetLength) {
 			this.splitterGenerator=splitterGenerator;
 			this.sharpPosition=sharpPosition;
 			this.splitters=splitters;
@@ -960,7 +958,7 @@ public class Suffixes {
 				else if (rightSplitter==nSplitters) intervalOfSuffixes(splitters.getElementAt(rightSplitter-1),-1,lcpArrays[rightSplitter-1],null,string,suffixArrayBlock);
 				else intervalOfSuffixes(splitters.getElementAt(rightSplitter-1),rightSplitterSuffix,lcpArrays[rightSplitter-1],lcpArrays[rightSplitter],string,suffixArrayBlock);
 				blockLength=suffixArrayBlock.length();
-				sort(suffixArrayBlock,string,random,constants);
+				sort(suffixArrayBlock,string,random);
 
 				// Building local BWT block
 				blockStart=blockStarts.getElementAt(rightSplitter);
@@ -1023,14 +1021,12 @@ public class Suffixes {
 		private CountDownLatch latch;
 		private IntArray[] lcpArrays, localBlockCounts;
 		private HuffmanWaveletTree[] waveletTrees;
-		private Constants constants;
 
 		/**
 		 * @param splitters contains a number of splitters that can be represented as an
 		 * $int$.
 		 */
-		public WaveletBWTBlockThread(AtomicInteger splitterGenerator, AtomicLong sharpPosition, AtomicInteger sharpBlock, AtomicLong sharpOffset, IntArray splitters, IntArray[] lcpArrays, IntArray string, IntArray blockStarts, HuffmanWaveletTree[] waveletTrees, IntArray[] localBlockCounts, CountDownLatch latch, long maxBlockSize, int[] alphabet, int alphabetLength, int log2alphabetLength, Constants constants) {
-			this.constants=constants;
+		public WaveletBWTBlockThread(AtomicInteger splitterGenerator, AtomicLong sharpPosition, AtomicInteger sharpBlock, AtomicLong sharpOffset, IntArray splitters, IntArray[] lcpArrays, IntArray string, IntArray blockStarts, HuffmanWaveletTree[] waveletTrees, IntArray[] localBlockCounts, CountDownLatch latch, long maxBlockSize, int[] alphabet, int alphabetLength, int log2alphabetLength) {
 			this.splitterGenerator=splitterGenerator;
 			this.sharpPosition=sharpPosition;
 			this.sharpBlock=sharpBlock;
@@ -1070,7 +1066,7 @@ public class Suffixes {
 				else if (rightSplitter==nSplitters) intervalOfSuffixes(splitters.getElementAt(rightSplitter-1),-1,lcpArrays[rightSplitter-1],null,string,suffixArrayBlock);
 				else intervalOfSuffixes(splitters.getElementAt(rightSplitter-1),rightSplitterSuffix,lcpArrays[rightSplitter-1],lcpArrays[rightSplitter],string,suffixArrayBlock);
 				blockLength=suffixArrayBlock.length();
-				if (blockLength>0) sort(suffixArrayBlock,string,random,constants);
+				if (blockLength>0) sort(suffixArrayBlock,string,random);
 
 				// Building the local BWT block. Not building the BWT
 				// block explicitly would produce cache misses both while counting the
@@ -1151,7 +1147,7 @@ public class Suffixes {
 	 * the maximum memory available to $blockwiseBWT$ is $availableMemory$ bits, and that
 	 * the maximum number of threads available to $blockwiseBWT$ is $nThreads$.
 	 */
-	public static final long blockwiseBWT_getBlockSize(long stringLength, int log2stringLength, int log2alphabetLength, Constants constants) {
+	public static final long blockwiseBWT_getBlockSize(long stringLength, int log2stringLength, int log2alphabetLength) {
 		/*
 		availableMemory = 2*(stringLength/blockSize)*log2stringLength +  // $binarySearchCache$
 					        (stringLength/blockSize)*log2stringLength +  // $splitters_byPosition$
@@ -1163,12 +1159,12 @@ public class Suffixes {
 						    nThreads*blockSize*log2stringLength +  // $suffixArrayBlock$
 						    nThreads*blockSize*log2alphabetLength;  // $bwtBlock$
 		*/
-		long availableMemory = constants.MAX_MEMORY<<3;
+		long availableMemory = Constants.MAX_MEMORY<<3;
 		long c = 2*stringLength*log2stringLength +
 			 	 4*stringLength*log2stringLength +
-				 stringLength*(constants.DISTINGUISHING_PREFIX+1)*log2stringLength +
+				 stringLength*(Constants.DISTINGUISHING_PREFIX+1)*log2stringLength +
 				 stringLength*32;
-		int a = constants.N_THREADS*(log2stringLength+log2alphabetLength);
+		int a = Constants.N_THREADS*(log2stringLength+log2alphabetLength);
 		double delta = availableMemory*availableMemory-4*a*c;
 		long out = (long)((availableMemory+Math.sqrt(delta))/(2*a));
 		return out>2?out:2;  // Putting at least two suffixes in a block

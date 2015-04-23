@@ -165,8 +165,7 @@ public class Tests {
 		int i, j, k, t, r, b, position, region, cell, offset;
 		int[] numbers = new int[N_ELEMENTS];
 		long nElements, read;
-		Constants constants = new Constants();
-		SimpleStream stream = new SimpleStream(constants.LONGS_PER_REGION);
+		SimpleStream stream = new SimpleStream(Constants.LONGS_PER_REGION);
 		XorShiftStarRandom random = new XorShiftStarRandom();
 
 		for (t=0; t<N_ITERATIONS; t++) {
@@ -237,8 +236,7 @@ public class Tests {
 		int i, j, k, t, r, b, position, region, cell, offset;
 		int[] numbers = new int[N_ELEMENTS];
 		long nBits, read;
-		Constants constants = new Constants();
-		RigidStream stream = new RigidStream(bpi,constants.LONGS_PER_REGION);
+		RigidStream stream = new RigidStream(bpi,Constants.LONGS_PER_REGION);
 		XorShiftStarRandom random = new XorShiftStarRandom();
 
 		for (t=0; t<N_ITERATIONS; t++) {
@@ -299,7 +297,6 @@ public class Tests {
 	private static final boolean test_BernoulliSubstring() {
 		final int STRING_LENGTH = 100;
 		final int N_ITERATIONS = 100;
-		Constants constants = new Constants();
 		int i, j, k, c, sharpPosition;
 		int[] alphabet = new int[] {0,1,2,3};
 		String stringString = new String();
@@ -351,10 +348,10 @@ public class Tests {
 //for (int x=0; x<trueSubstringsArray.length; x++) System.out.println(trueSubstringsArray[x]);
 
 			// Running $SubstringIterator$
-			constants.N_THREADS=2;
-			constants.MAX_MEMORY=10;
+			Constants.N_THREADS=2;
+			Constants.MAX_MEMORY=10;
 			iteratorSubstrings = new HashSet<String>();
-			iterator = new SubstringIterator(string,alphabet,4,new TestBernoulliSubstring(4,2,STRING_LENGTH+1,Utils.log2(STRING_LENGTH+1),stringString),constants);
+			iterator = new SubstringIterator(string,alphabet,4,new TestBernoulliSubstring(4,2,STRING_LENGTH+1,Utils.log2(STRING_LENGTH+1),stringString));
 			System.out.print("(");
 			iterator.run();
 			System.out.print(")");
@@ -448,7 +445,6 @@ System.out.println();
 	private static final boolean test_rightMaximalSubstringsWithBorder() {
 		final int STRING_LENGTH = 200;
 		final int N_ITERATIONS = 100;
-		Constants constants = new Constants();
 		int i, j, k, c, sharpPosition;
 		int[] alphabet = new int[] {0,1,2,3};
 		String stringString = new String();
@@ -501,10 +497,10 @@ System.out.println();
 //for (int x=0; x<trueSubstringsArray.length; x++) System.out.println(trueSubstringsArray[x]);
 
 			// Running $SubstringIterator$
-			constants.N_THREADS=2;
-			constants.MAX_MEMORY=10;
+			Constants.N_THREADS=2;
+			Constants.MAX_MEMORY=10;
 			iteratorSubstringsWithBorder = new HashSet<StringWithBorder>();
-			iterator = new SubstringIterator(string,alphabet,4,new TestBorderSubstring(4,2,STRING_LENGTH+1,Utils.log2(STRING_LENGTH+1),stringString),constants);
+			iterator = new SubstringIterator(string,alphabet,4,new TestBorderSubstring(4,2,STRING_LENGTH+1,Utils.log2(STRING_LENGTH+1),stringString));
 			System.out.print("(");
 			iterator.run();
 			System.out.print(")");
@@ -807,7 +803,7 @@ if (str.equals("000")) {
 				}
 				stack.setPosition(substrings[index].stackPointers[0]);
 				w.read(stack,true,true);
-				if (!w.occurs()||!w.equals(substrings[index])) {
+				if (w.frequency()==0||!w.equals(substrings[index])) {
 					System.err.println("Error in readFast");
 					return false;
 				}
@@ -853,7 +849,6 @@ if (str.equals("000")) {
 	private static final boolean test_rightMaximalSubstring() {
 		final int STRING_LENGTH = 100;
 		final int N_ITERATIONS = 100;
-		Constants constants = new Constants();
 		int i, j, k, c, sharpPosition;
 		int[] alphabet = new int[] {0,1,2,3};
 		String stringString = new String();
@@ -905,10 +900,10 @@ if (str.equals("000")) {
 //for (int x=0; x<trueSubstringsArray.length; x++) System.out.println(trueSubstringsArray[x]);
 
 			// Running $SubstringIterator$
-			constants.N_THREADS=2;
-			constants.MAX_MEMORY=10;
+			Constants.N_THREADS=2;
+			Constants.MAX_MEMORY=10;
 			iteratorSubstrings = new HashSet<String>();
-			iterator = new SubstringIterator(string,alphabet,4,new TestRightMaximalSubstring(4,2,STRING_LENGTH+1,Utils.log2(STRING_LENGTH+1),stringString),constants);
+			iterator = new SubstringIterator(string,alphabet,4,new TestRightMaximalSubstring(4,2,STRING_LENGTH+1,Utils.log2(STRING_LENGTH+1),stringString));
 			System.out.print("(");
 			iterator.run();
 			System.out.print(")");
@@ -1002,7 +997,6 @@ System.out.println();
 	private static final boolean test_substringIterator() {
 		final int STRING_LENGTH = 100;
 		final int N_ITERATIONS = 100;
-		Constants constants = new Constants();
 		int i, j, k, c, sharpPosition;
 		int[] alphabet = new int[] {0,1,2,3};
 		String stringString = new String();
@@ -1039,14 +1033,14 @@ System.out.println();
 
 			// Building BWT for reporting
 			IntArray bwt = new IntArray(STRING_LENGTH+1,2,true);
-			sharpPosition=(int)(Suffixes.blockwiseBWT(string,alphabet,4,2,2,bwt,null,null,null,null,null,constants));
+			sharpPosition=(int)(Suffixes.blockwiseBWT(string,alphabet,4,2,2,bwt,null,null,null,null,null));
 //System.out.println("BWT: "); bwt.print(); System.out.println();
 
 /*			// Running $SubstringIterator$ with one thread
-			constants.N_THREADS=1;
-			constants.MAX_MEMORY=10;
+			Constants.N_THREADS=1;
+			Constants.MAX_MEMORY=10;
 			iteratorSubstrings = new HashSet<String>();
-			iterator = new SubstringIterator(string,alphabet,4,new TestSubstring(4,2,STRING_LENGTH+1,Utils.log2(STRING_LENGTH+1),stringString),constants);
+			iterator = new SubstringIterator(string,alphabet,4,new TestSubstring(4,2,STRING_LENGTH+1,Utils.log2(STRING_LENGTH+1),stringString));
 			iterator.run();
 			iteratorSubstringsArray = new String[iteratorSubstrings.size()];
 			iteratorSubstrings.toArray(iteratorSubstringsArray);
@@ -1076,10 +1070,10 @@ System.out.println();
 			}
 */
 			// Running $SubstringIterator$ with multiple threads
-			constants.N_THREADS=2;
-			constants.MAX_MEMORY=10;
+			Constants.N_THREADS=2;
+			Constants.MAX_MEMORY=10;
 			iteratorSubstrings = new HashSet<String>();
-			iterator = new SubstringIterator(string,alphabet,4,new TestSubstring(4,2,STRING_LENGTH+1,Utils.log2(STRING_LENGTH+1),stringString),constants);
+			iterator = new SubstringIterator(string,alphabet,4,new TestSubstring(4,2,STRING_LENGTH+1,Utils.log2(STRING_LENGTH+1),stringString));
 			System.out.print("(");
 			iterator.run();
 			System.out.print(")");
@@ -1185,13 +1179,13 @@ System.out.println();
 				index=random.nextInt(N_ELEMENTS);
 				stack.setPosition(substrings[index].stackPointers[0]);
 				w.read(stack,false,false);
-				if (!w.occurs()||!w.equals(substrings[index])) {
+				if (w.frequency()==0||!w.equals(substrings[index])) {
 					System.err.println("Error in read");
 					return false;
 				}
 				stack.setPosition(substrings[index].stackPointers[0]);
 				w.read(stack,true,true);
-				if (!w.occurs()||!w.equals(substrings[index])) {
+				if (w.frequency()==0||!w.equals(substrings[index])) {
 					System.err.println("Error in readFast");
 					return false;
 				}
@@ -1237,8 +1231,7 @@ System.out.println();
 		int i, j, k, t, r, b, position, region, cell, offset;
 		int[] numbers = new int[N_ELEMENTS];
 		long nBits, read;
-		Constants constants = new Constants();
-		Stream stream = new Stream(constants.LONGS_PER_REGION);
+		Stream stream = new Stream(Constants.LONGS_PER_REGION);
 		XorShiftStarRandom random = new XorShiftStarRandom();
 
 		for (t=0; t<N_ITERATIONS; t++) {
@@ -1440,7 +1433,6 @@ System.out.println();
 		IntArray[] localBlockCounts;
 		suffixes = new IntArray(STRING_LENGTH,Utils.log2(STRING_LENGTH),false);
 		for (i=0; i<STRING_LENGTH; i++) suffixes.push(i);
-		Constants constants = new Constants();
 
 		for (i=0; i<N_ITERATIONS; i++) {
 			string = new IntArray(STRING_LENGTH,2,false);
@@ -1448,8 +1440,8 @@ System.out.println();
 			bwt = new IntArray(STRING_LENGTH+1,2,true);
 
 			// Checking $SortBWTBlockThread$
-			sharpPosition1=(int)(Suffixes.blockwiseBWT(string,alphabet,4,2,BLOCK_SIZE,bwt,null,null,null,null,null,constants));
-			Suffixes.sort(suffixes,string,random,constants);
+			sharpPosition1=(int)(Suffixes.blockwiseBWT(string,alphabet,4,2,BLOCK_SIZE,bwt,null,null,null,null,null));
+			Suffixes.sort(suffixes,string,random);
 			for (j=0; j<STRING_LENGTH; j++) {
 				suffix=(int)(suffixes.getElementAt(j));
 				if (suffix==0) {
@@ -1472,7 +1464,7 @@ System.out.println();
 			blockStarts = new IntArray(N_BLOCKS,Utils.log2(STRING_LENGTH),true);
 			sharp = new long[3];
 			localBlockCounts = new IntArray[N_BLOCKS];
-			sharpPosition2=(int)(Suffixes.blockwiseBWT(string,alphabet,4,2,BLOCK_SIZE,null,waveletTrees,blockStarts,bitVector,localBlockCounts,sharp,constants));
+			sharpPosition2=(int)(Suffixes.blockwiseBWT(string,alphabet,4,2,BLOCK_SIZE,null,waveletTrees,blockStarts,bitVector,localBlockCounts,sharp));
 			blockBoundaries = new Rank9(bitVector);
 			boolean isOK = true;
 			for (int x=0; x<STRING_LENGTH+1; x++) {
@@ -1670,7 +1662,6 @@ System.out.println();
 		int i, j, h, suffix, block;
 		IntArray string, splitters, cache;
 		XorShiftStarRandom random = new XorShiftStarRandom();
-		Constants constants = new Constants();
 
 		// Building a new string
 		string = new IntArray(STRING_LENGTH,2,false);
@@ -1682,7 +1673,7 @@ System.out.println();
 		for (i=0; i<N_ITERATIONS; i++) {
 			splitters.clear();
 			for (j=0; j<N_SPLITTERS; j++) splitters.push(random.nextInt(STRING_LENGTH));
-			Suffixes.sort(splitters,string,random,constants);
+			Suffixes.sort(splitters,string,random);
 			if (cache!=null) cache.clear(); cache=Suffixes.buildBinarySearchCache(splitters,string);
 			for (suffix=0; suffix<STRING_LENGTH; suffix++) {
 				if (splitters.linearSearch(suffix)>=0) continue;
@@ -1729,7 +1720,6 @@ System.out.println();
 		int i, j, h, suffix, block;
 		IntArray string, splitters, cache;
 		XorShiftStarRandom random = new XorShiftStarRandom();
-		Constants constants = new Constants();
 
 		// Building a new string
 		string = new IntArray(STRING_LENGTH,2,false);
@@ -1741,7 +1731,7 @@ System.out.println();
 		for (i=0; i<N_ITERATIONS; i++) {
 			splitters.clear();
 			for (j=0; j<N_SPLITTERS; j++) splitters.push(random.nextInt(STRING_LENGTH));
-			Suffixes.sort(splitters,string,random,constants);
+			Suffixes.sort(splitters,string,random);
 			if (cache!=null) cache.clear();
 			cache=Suffixes.buildBinarySearchCache(splitters,string);
 			if (cache.length()!=2*(splitters.length()-2)) {
@@ -1774,21 +1764,20 @@ System.out.println();
 		int i, j, h, low, high;
 		IntArray string, lcpLow, lcpHigh, out;
 		XorShiftStarRandom random = new XorShiftStarRandom();
-		Constants constants = new Constants();
 
 		// Building a new string
 		string = new IntArray(STRING_LENGTH,2,false);
 		for (i=0; i<STRING_LENGTH; i++) string.push(random.nextInt(4));
-		lcpLow = new IntArray(constants.DISTINGUISHING_PREFIX+1,Utils.log2(STRING_LENGTH<<1),false);
-		lcpHigh = new IntArray(constants.DISTINGUISHING_PREFIX+1,Utils.log2(STRING_LENGTH<<1),false);
+		lcpLow = new IntArray(Constants.DISTINGUISHING_PREFIX+1,Utils.log2(STRING_LENGTH<<1),false);
+		lcpHigh = new IntArray(Constants.DISTINGUISHING_PREFIX+1,Utils.log2(STRING_LENGTH<<1),false);
 		out = new IntArray(STRING_LENGTH-2,Utils.log2(STRING_LENGTH),false);
 
 		// Testing
 		for (i=0; i<N_INTERVALS; i++) {
 			low=random.nextInt(STRING_LENGTH);
 			do { high=random.nextInt(STRING_LENGTH); } while (high==low);
-			lcpLow.clear(); Suffixes.buildLCPArray(low,string,lcpLow,constants);
-			lcpHigh.clear(); Suffixes.buildLCPArray(high,string,lcpHigh,constants);
+			lcpLow.clear(); Suffixes.buildLCPArray(low,string,lcpLow);
+			lcpHigh.clear(); Suffixes.buildLCPArray(high,string,lcpHigh);
 
 			out.clear(); Suffixes.intervalOfSuffixes(low,high,lcpLow,lcpHigh,string,out);
 			if (!checkSuffixesInOut(low,high,out,string)) return false;
@@ -1857,7 +1846,6 @@ System.out.println();
 		int i, j, k, h, tmp, length, suffix, sign, predictedSign, predictedLCP, lcp, lcpArray;
 		IntArray string, out;
 		XorShiftStarRandom random = new XorShiftStarRandom();
-		Constants constants = new Constants();
 
 		// Building a new string
 		string = new IntArray(STRING_LENGTH,2,false);
@@ -1868,10 +1856,10 @@ System.out.println();
 
 		// Testing LCP values
 		for (i=0; i<N_SUFFIXES; i++) {
-			suffix=random.nextInt(STRING_LENGTH-constants.DISTINGUISHING_PREFIX+1);
+			suffix=random.nextInt(STRING_LENGTH-Constants.DISTINGUISHING_PREFIX+1);
 			out.clear();
-			Suffixes.buildLCPArray(suffix,string,out,constants);
-			for (j=1; j<=constants.DISTINGUISHING_PREFIX; j++) {
+			Suffixes.buildLCPArray(suffix,string,out);
+			for (j=1; j<=Constants.DISTINGUISHING_PREFIX; j++) {
 				lcp=(int)(string.lcp(suffix,suffix+j,true));
 				length=lcp&Utils.MSB_INT_ZERO;
 				sign=lcp&Utils.MSB_INT_ONE;

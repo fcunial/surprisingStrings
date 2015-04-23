@@ -77,8 +77,8 @@ public class RightMaximalSubstring extends Substring {
 	}
 
 
-	protected boolean occurs() {
-		return bwtIntervals[alphabetLength][1]>=bwtIntervals[0][0];
+	protected long frequency() {
+		return bwtIntervals[alphabetLength][1]>=bwtIntervals[0][0]?bwtIntervals[alphabetLength][1]-bwtIntervals[0][0]+1:0;
 	}
 
 }

@@ -3,7 +3,8 @@ import java.util.Arrays;
 /**
  * A right-maximal substring that computes its longest border from its suffix. See
  * \cite{apostolico2000efficient} for algorithms. This class provides subclasses with a
- * $Substring$ object that represents its longest border.
+ * $Substring$ object that represents its longest border: loading this object is necessary
+ * for the procedures inside this class, so it's not an overhead.
  */
 public class BorderSubstring extends RightMaximalSubstring {
 	/**
@@ -68,6 +69,17 @@ public class BorderSubstring extends RightMaximalSubstring {
 		stackPointers = new long[MAX_POINTERS];
 		rightCharacters = new int[alphabetLength];
 		leftCharacters = new int[alphabetLength];
+	}
+
+
+	protected void deallocate() {
+		super.deallocate();
+		rightCharacters=null;
+		leftCharacters=null;
+		if (longestBorder!=null) {
+			longestBorder.deallocate();
+			longestBorder=null;
+		}
 	}
 
 
@@ -342,7 +354,6 @@ public class BorderSubstring extends RightMaximalSubstring {
 		leftLength=(int)stack.read(log2alphabetLength);
 		skipBorderSubstring(stack);
 	}
-
 	protected long serializedSize() {
 		return super.serializedSize()+
 			   log2alphabetLength+
