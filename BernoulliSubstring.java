@@ -131,9 +131,9 @@ public class BernoulliSubstring extends BorderSubstring {
 			if (aWFrequency==0) continue;
 			leftExtensions[i].fillBuffer(extensionBuffer,false);
 			for (j=1; j<alphabetLength+1; j++) {
+				if (bwtIntervals[j][1]<bwtIntervals[j][0]) continue;
 				WbFrequency=bwtIntervals[j][1]-bwtIntervals[j][0]+1;
-				if (WbFrequency==0) continue;
-				aWbFrequency=leftExtensions[i].bwtIntervals[j][1]-leftExtensions[i].bwtIntervals[j][0]+1;
+				aWbFrequency=leftExtensions[i].bwtIntervals[j][1]>=leftExtensions[i].bwtIntervals[j][0]?leftExtensions[i].bwtIntervals[j][1]-leftExtensions[i].bwtIntervals[j][0]+1:0;
 				if (aWbFrequency==aWFrequency || aWbFrequency==WbFrequency) continue;
 				if (extensionBuffer[j-1]==-1) {
 					getBarPFG((BernoulliSubstring)leftExtensions[i],j-1,length+2,0,0,0,stack,pointerStack,out);
@@ -209,6 +209,8 @@ public class BernoulliSubstring extends BorderSubstring {
 		variance=barP*(1-barP);  // First term of the variance
 		variance-=barPSquare*(((bwtLength-1)<<1)-3*length+2)*(length-1);  // Second term of the variance
 		if (longestBorderLength>0) variance+=2*barP*f;
+		// It's likely that the trick of \cite{sinha2000statistical}, mentioned in
+		// \cite{apostolico2003monotony} on page 299, does not give any major speedup here.
 
 		if (frequency<=Integer.MAX_VALUE && (length-longestBorderLength)/(double)length>Constants.GG*oneOverLogTextLength && textLength>Constants.GG*length) {
 			b1 = barPSquare*( ((length*textLength)<<1) - textLength -3*length*length + (length<<2) - 1);
