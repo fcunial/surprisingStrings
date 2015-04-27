@@ -28,9 +28,17 @@ public class BorderSubstring extends RightMaximalSubstring {
 	protected int leftLength;  // Number of elements in $left_v$
 
 	/**
-	 * The longest border $y$ of $v$
+	 * The longest border $y$ of $v$. Object $longestBorder$ is allocate at most once.
 	 */
 	protected BorderSubstring longestBorder;
+	protected long longestBorderLength, shortestPeriodLength;
+
+	/**
+	 * Maximum possible number of occurrences of $v$ in a string of length $textLength$,
+	 * i.e. $\lceil n/p \rceil + \lceil m/p \rceil + 1$, where $n=textLength$,
+	 * $m=length$, $p=shortestPeriodLength$.
+	 */
+	protected long maxPossibleOccurrences;
 
 	/**
 	 * The index in $rightCharacters$ of the character $d$ such that $v=xdy$,
@@ -42,10 +50,14 @@ public class BorderSubstring extends RightMaximalSubstring {
 	/**
 	 * The index in $leftCharacters$ of the character $d$ such that $v=ydx$,
 	 * where $y$ is the longest border of $v$ and $x$ is a string.
-	 * This number is not pushed in the stack and it's not automatically computed when
-	 * reading the stack. It is, however, computed by $init$.
+	 * This number is pushed in the stack.
 	 */
 	protected int longestBorderLeftCharacter;
+
+	/**
+	 * Temporary, reused space, allocated exactly once.
+	 */
+	private long[] buffer;
 
 
 	/**
@@ -69,6 +81,7 @@ public class BorderSubstring extends RightMaximalSubstring {
 		stackPointers = new long[MAX_POINTERS];
 		rightCharacters = new int[alphabetLength];
 		leftCharacters = new int[alphabetLength];
+		buffer = new long[alphabetLength];
 	}
 
 
@@ -93,14 +106,18 @@ public class BorderSubstring extends RightMaximalSubstring {
 	 * 1. rightLength
 	 * 2. leftLength, if rightLength>0;
 	 * 3. longestBorderRightCharacter, if rightLength>0;
-	 * 4. rightCharacters, if rightLength>0;
-	 * 5. leftCharacters, if rightLength>0.
+	 * 4. longestBorderLeftCharacter, if rightLength>0;
+	 * 5. longestBorderLength, if rightLength>0;
+	 * 6. rightCharacters, if rightLength>0;
+	 * 7. leftCharacters, if rightLength>0.
 	 */
 	protected void pushHeadPrime(Stream stack) {
 		stack.push(rightLength,log2alphabetLength);
 		if (rightLength>0) {
 			stack.push(leftLength,log2alphabetLength);
 			stack.push(longestBorderRightCharacter,Utils.log2(rightLength));
+			stack.push(longestBorderLeftCharacter,Utils.log2(leftLength));
+			stack.push(longestBorderLength,Utils.log2(length));
 			int i;
 			for (i=0; i<rightLength; i++) stack.push(rightCharacters[i],log2alphabetLength);
 			for (i=0; i<leftLength; i++) stack.push(leftCharacters[i],log2alphabetLength);
@@ -112,19 +129,27 @@ public class BorderSubstring extends RightMaximalSubstring {
 		rightLength=(int)stack.read(log2alphabetLength);
 		if (rightLength==0) {
 			longestBorderRightCharacter=-1;
+			longestBorderLeftCharacter=-1;
 			leftLength=0;
+			longestBorderLength=0;
 		}
 		else {
 			leftLength=(int)stack.read(log2alphabetLength);
 			longestBorderRightCharacter=-1;
+			longestBorderLeftCharacter=-1;
+			longestBorderLength=-1;
 			if (fast && hasBeenExtended) {
 				stack.setPosition( stack.getPosition()+
 								   Utils.log2(rightLength)+
+								   Utils.log2(leftLength)+
+								   Utils.log2(length)+
 								   rightLength*log2alphabetLength+
 								   leftLength*log2alphabetLength );
 			}
 			else {
 				longestBorderRightCharacter=(int)stack.read(Utils.log2(rightLength));
+				longestBorderLeftCharacter=(int)stack.read(Utils.log2(leftLength));
+				longestBorderLength=(int)stack.read(Utils.log2(length));
 				int i;
 				for (i=0; i<rightLength; i++) rightCharacters[i]=(int)stack.read(log2alphabetLength);
 				for (i=0; i<leftLength; i++) leftCharacters[i]=(int)stack.read(log2alphabetLength);
@@ -136,6 +161,8 @@ public class BorderSubstring extends RightMaximalSubstring {
 	protected void popHeadPrime(Stream stack) {
 		long x = rightLength>0 ? log2alphabetLength+
 						         Utils.log2(rightLength)+
+						         Utils.log2(leftLength)+
+						         Utils.log2(length)+
 						         rightLength*log2alphabetLength+
 						         leftLength*log2alphabetLength : 0;
 		stack.pop(log2alphabetLength+x);
@@ -160,14 +187,18 @@ public class BorderSubstring extends RightMaximalSubstring {
 	 */
 	protected void init(Substring suffix, int firstCharacter, Stream stack, RigidStream characterStack, SimpleStream pointerStack, long[] buffer) {
 		super.init(suffix,firstCharacter,stack,characterStack,pointerStack,buffer);
+		longestBorderLength=0;
 		rightLength=0;
 		longestBorderRightCharacter=-1;
 		longestBorderLeftCharacter=-1;
-		if (length==1 || firstCharacter==-1 || rightContext==1) return;  // We don't compute borders for left-extensions that are not right-maximal.
-		int pos = (int)buffer[firstCharacter];
-		if (pos==-1) initFromSuffixWithoutBorder(firstCharacter,suffix,stack,characterStack,pointerStack);
-		else initFromSuffixWithBorder((BorderSubstring)suffix,pos,stack,characterStack,pointerStack);
-		initLeftCharacters(characterStack,pointerStack);
+		if (length>1 && firstCharacter!=-1 && rightContext>1) {  // We don't compute borders for left-extensions that are not right-maximal.
+			int pos = (int)buffer[firstCharacter];
+			if (pos==-1) initFromSuffixWithoutBorder(firstCharacter,suffix,stack,characterStack,pointerStack);
+			else initFromSuffixWithBorder((BorderSubstring)suffix,pos,stack,characterStack,pointerStack);
+			initLeftCharacters(characterStack,pointerStack);
+		}
+		shortestPeriodLength=length-longestBorderLength;
+		maxPossibleOccurrences=textLength/shortestPeriodLength-length/shortestPeriodLength+1;
 	}
 
 
@@ -187,20 +218,22 @@ public class BorderSubstring extends RightMaximalSubstring {
 			rightLength=1;
 			nPointers=MIN_POINTERS+1;
 			if (length==2) {
-				if (longestBorder==null) longestBorder=(BorderSubstring)getInstance();  // Executed only once
 				backupPointer=stack.getPosition();
 				stack.setPosition(suffix.stackPointers[0]);
+				if (longestBorder==null) longestBorder=(BorderSubstring)getInstance();  // Executed at most once
 				longestBorder.read(stack,false,false);
 				stack.setPosition(backupPointer);
+				longestBorderLength=longestBorder.length;
 				d=firstCharacter;
 				pointer=-1;  // -1 will be converted to $stackPointers[0]$ by $Substring.push$
 			}
 			else {
-				if (longestBorder==null) longestBorder=(BorderSubstring)getInstance();  // Executed only once
 				backupPointer=stack.getPosition();
 				stack.setPosition(pointerStack.getElementAt(0));
+				if (longestBorder==null) longestBorder=(BorderSubstring)getInstance();  // Executed at most once
 				longestBorder.read(stack,false,false);
 				stack.setPosition(backupPointer);
+				longestBorderLength=longestBorder.length;
 				d=(int)(characterStack.getElementAt(1));  // Character that precedes the longest border of $v$
 				pointer=pointerStack.getElementAt(1);
 			}
@@ -222,13 +255,13 @@ public class BorderSubstring extends RightMaximalSubstring {
 	 */
 	private final void initFromSuffixWithBorder(BorderSubstring suffix, int pos, Stream stack, RigidStream characterStack, SimpleStream pointerStack) {
 		int i, d, start;
-		long pointer, backupPointer, longestBorderPointer, longestBorderLength;
+		long pointer, backupPointer, longestBorderPointer;
 
 		// Loading longest border and preceding character
-		if (longestBorder==null) longestBorder=(BorderSubstring)getInstance();  // Executed only once
 		backupPointer=stack.getPosition();
 		longestBorderPointer=suffix.stackPointers[MIN_POINTERS+pos];
 		stack.setPosition(longestBorderPointer);
+		if (longestBorder==null) longestBorder=(BorderSubstring)getInstance();  // Executed at most once
 		longestBorder.read(stack,false,false);
 		longestBorderLength=longestBorder.length;
 		if (longestBorderLength==length-1) {
@@ -281,10 +314,9 @@ public class BorderSubstring extends RightMaximalSubstring {
 			return;
 		}
 		int d, longestBorderStart, start;
-		long longestBorderLength, pointer, k;
+		long pointer, k;
 
 		// Computing preceding character and pointer
-		longestBorderLength=longestBorder.length;
 		if (longestBorderLength==length-1) {
 			d=(int)(characterStack.getElementAt(0));
 			pointer=-1;  // -1 will be converted to $stackPointers[0]$ by $Substring.push$
@@ -330,15 +362,26 @@ public class BorderSubstring extends RightMaximalSubstring {
 
 	/**
 	 * $buffer$ is used to map a character of the alphabet $[0..\alphabetLength-1]$ to its
-	 * position in $rightCharacters$.
+	 * position in $rightCharacters$ (if $right=TRUE$) or in $leftCharacters$ (if
+	 * $right=FALSE$).
 	 */
-	protected void fillBuffer(long[] buffer) {
-		for (int i=0; i<rightLength; i++) buffer[rightCharacters[i]]=i;
+	protected void fillBuffer(long[] buffer, boolean right) {
+		if (right) {
+			for (int i=0; i<rightLength; i++) buffer[rightCharacters[i]]=i;
+		}
+		else {
+			for (int i=0; i<leftLength; i++) buffer[leftCharacters[i]]=i;
+		}
 	}
 
 
-	protected void emptyBuffer(long[] buffer) {
-		for (int i=0; i<rightLength; i++) buffer[rightCharacters[i]]=-1;
+	protected void emptyBuffer(long[] buffer, boolean right) {
+		if (right) {
+			for (int i=0; i<rightLength; i++) buffer[rightCharacters[i]]=-1;
+		}
+		else {
+			for (int i=0; i<leftLength; i++) buffer[leftCharacters[i]]=-1;
+		}
 	}
 
 }

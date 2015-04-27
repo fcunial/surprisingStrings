@@ -72,6 +72,9 @@ public class RightMaximalSubstring extends Substring {
 	}
 
 
+	/**
+	 * Pushes just right-maximal substrings on the stack
+	 */
 	protected boolean shouldBeExtendedLeft() {
 		return rightContext>1;
 	}

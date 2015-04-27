@@ -86,29 +86,15 @@ public class Constants {
 	public static boolean TIGHT_POISSON_ERROR = true;
 
 
-	public static final byte SCORE_ID = 8;
 
 
-	/**
-	 * Computes the surprise score of type $SCORE_ID$ of a substring. This procedure
-	 * defines $SCORE_ID$.
-	 */
-	public static final double getScore(double frequency, double expectation, double variance) {
-		switch (SCORE_ID) {
-			// Expectation only
-			case 1: return frequency-expectation;
-			case 2: return frequency/expectation;
-			case 3: return (frequency-expectation)/expectation;
-			case 4: return (frequency-expectation)/Math.sqrt(expectation);
-			case 5: return Math.abs(frequency-expectation)/Math.sqrt(expectation);
-			case 6: return (frequency-expectation)*(frequency-expectation)/expectation;
-			case 7: return (frequency-expectation)/Math.sqrt(variance);  // Assumes that $variance$ is the approximation $expectation*(1-pHat)$
-			// Expectation and variance
-			case 8: return (frequency-expectation)/Math.sqrt(variance);
-			case 9: return Math.abs(frequency-expectation)/Math.sqrt(variance);
-		}
-		return 0;
-	}
+
+
+
+
+
+
+
 
 
 	/**
@@ -127,7 +113,7 @@ public class Constants {
 	 * right-maximal substrings; 2: both; 3: don't explore any node, i.e. the
 	 * whole approach fails.
 	 */
-	public static final byte nodesToExplore(byte stringType, double maxProbability) {
+/*	public static final byte nodesToExplore(byte stringType, double maxProbability) {
 		if (SCORE_ID<=5) return stringType;
 		if (SCORE_ID==6) return 2;
 		if (SCORE_ID==7) {
@@ -150,5 +136,5 @@ public class Constants {
 		}
 		return 3;
 	}
-
+*/
 }

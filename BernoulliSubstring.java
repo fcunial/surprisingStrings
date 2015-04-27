@@ -9,9 +9,10 @@ import org.apache.commons.math3.distribution.NormalDistribution;
  */
 public class BernoulliSubstring extends BorderSubstring {
 	/**
-	 * $\log_{e}(\bar{p})$, where $\bar{p} = \prod_{i=0}^{|v|-1}\mathbb{P}(v[i])$.
+	 * $\bar{p}$ and $\log_{e}(\bar{p})$, where
+	 * $\bar{p} = \prod_{i=0}^{|v|-1}\mathbb{P}(v[i])$.
 	 */
-	protected double logBarP;
+	protected double barP, barPSquare, logBarP;
 
 	/**
 	 * $f(v) = \sum_{b \in borders(v)}(|s|-2|v|+b+1)\prod_{i=b}^{|v|-1}\mathbb{P}(v[i])$,
@@ -24,12 +25,12 @@ public class BernoulliSubstring extends BorderSubstring {
 	 */
 	protected double g;
 
-	protected double expectation, variance, pValue, pValueError;
-
 	/**
-	 * Temporary scratch space, allocated at most once.
+	 * Temporary scratch space, allocated exactly once.
 	 */
 	private BernoulliSubstring tmpString;
+	private double[] out;
+	private long[] extensionBuffer;
 
 
 	/**
@@ -41,6 +42,8 @@ public class BernoulliSubstring extends BorderSubstring {
 
 	public BernoulliSubstring(int alphabetLength, int log2alphabetLength, long bwtLength, int log2bwtLength) {
 		super(alphabetLength,log2alphabetLength,bwtLength,log2bwtLength);
+		out = new double[10];
+		extensionBuffer = new long[alphabetLength];
 	}
 
 
@@ -50,6 +53,8 @@ public class BernoulliSubstring extends BorderSubstring {
 			tmpString.deallocate();
 			tmpString=null;
 		}
+		out=null;
+		extensionBuffer=null;
 	}
 
 
@@ -71,6 +76,8 @@ public class BernoulliSubstring extends BorderSubstring {
 	protected void readHeadPrime(Stream stack, boolean fast) {
 		super.readHeadPrime(stack,fast);
 		logBarP=Double.longBitsToDouble(stack.read(64));
+		barP=Math.exp(logBarP);
+		barPSquare=barP*barP;
 		if (rightLength>0) {
 			if (fast && hasBeenExtended) {
 				f=-1;
@@ -91,49 +98,119 @@ public class BernoulliSubstring extends BorderSubstring {
 	}
 
 
-	/**
-	 * Remark: the recursive computations in this method hold only for
-	 * $length<=HALF_TEXT_LENGTH$.
-	 */
 	protected void init(Substring suffix, int firstCharacter, Stream stack, RigidStream characterStack, SimpleStream pointerStack, long[] buffer) {
 		super.init(suffix,firstCharacter,stack,characterStack,pointerStack,buffer);
 		if (firstCharacter==-1) return;
-		final double barP, barPSquare, x, longestBorderG, b1, b2;
-		long backupPointer, longestBorderLength;
-		expectation=0;
-		variance=0;
+		BernoulliSubstring lb = (BernoulliSubstring)longestBorder;
+		getBarPFG((BernoulliSubstring)suffix,firstCharacter,length,longestBorderLength,longestBorderLength==0?0:lb.f,longestBorderLength==0?0:lb.g,stack,pointerStack,out);
+		logBarP=out[0]; barP=out[1]; barPSquare=out[2]; f=out[3]; g=out[4];
+	}
 
-		// Expectation and first term of the variance
-		logBarP=((BernoulliSubstring)suffix).logBarP+Constants.logProbabilities[firstCharacter];
+
+	/**
+	 * Being dependent on $SubstringIterator$ and on $RightMaximalSubstring$, this
+	 * procedure must be adapted to the case of large alphabet.
+	 */
+	protected void visited(Stream stack, RigidStream characterStack, SimpleStream pointerStack, Substring[] leftExtensions) {
+		int i, j, leftContext;
+		long aWFrequency, WbFrequency, aWbFrequency, backupPointer;
+
+		// Maximal repeats.
+		// We already know that strings on which $visited$ is called are right-maximal.
+		leftContext=0;
+		for (i=0; i<alphabetLength+1; i++) {
+			if (leftExtensions[i].frequency()>0) leftContext++;
+		}
+		if (leftContext<2) return;
+		getExpectationAndVariance(length,barP,barPSquare,f,frequency(),longestBorderLength,out);
+		getScores(frequency(),out[0],out[1],barP,out);
+
+		// Substrings whose infix is a maximal repeat
+		for (i=1; i<alphabetLength+1; i++) {  // Discarding $#$
+			aWFrequency=leftExtensions[i].frequency();
+			if (aWFrequency==0) continue;
+			leftExtensions[i].fillBuffer(extensionBuffer,false);
+			for (j=1; j<alphabetLength+1; j++) {
+				WbFrequency=bwtIntervals[j][1]-bwtIntervals[j][0]+1;
+				if (WbFrequency==0) continue;
+				aWbFrequency=leftExtensions[i].bwtIntervals[j][1]-leftExtensions[i].bwtIntervals[j][0]+1;
+				if (aWbFrequency==aWFrequency || aWbFrequency==WbFrequency) continue;
+				if (extensionBuffer[j-1]==-1) {
+					getBarPFG((BernoulliSubstring)leftExtensions[i],j-1,length+2,0,0,0,stack,pointerStack,out);
+					barP=out[1];
+					getExpectationAndVariance(length+2,barP,out[2],out[3],aWbFrequency,0,out);
+					getScores(aWbFrequency,out[0],out[1],barP,out);
+				}
+				else {
+					backupPointer=stack.getPosition();
+					stack.setPosition(extensionBuffer[j-1]);
+					if (tmpString==null) tmpString=(BernoulliSubstring)getInstance();  // Executed at most once
+					tmpString.read(stack,false,false);
+					stack.setPosition(backupPointer);
+					getBarPFG((BernoulliSubstring)leftExtensions[i],j-1,length+2,tmpString.length,tmpString.f,tmpString.g,stack,pointerStack,out);
+					barP=out[1];
+					getExpectationAndVariance(length+2,barP,out[2],out[3],aWbFrequency,tmpString.length,out);
+					getScores(aWbFrequency,out[0],out[1],barP,out);
+				}
+			}
+			leftExtensions[i].emptyBuffer(extensionBuffer,false);
+		}
+	}
+
+
+	/**
+	 * Computes $\bar{p}$, $f(v)$ and $g(v)$ from the longest proper suffix or prefix of
+	 * $v$ and from the longest border of $v$.
+	 *
+	 * @param out 0=$\log{\bar{p}}$; 1=$\bar{p}$; 2=$\bar{p}^2$; 3=$f(v)$; 4=$g(v)$.
+	 */
+	private final void getBarPFG(BernoulliSubstring prefixOrSuffix, int firstOrLastCharacter, long length, long longestBorderLength, double longestBorderF, double longestBorderG, Stream stack, SimpleStream pointerStack, double[] out) {
+		long backupPointer;
+		double logBarP, barP, barPSquare, f, g, x;
+
+		// $\bar{p}$
+		logBarP=prefixOrSuffix.logBarP+Constants.logProbabilities[firstOrLastCharacter];
 		barP=Math.exp(logBarP);
 		barPSquare=barP*barP;
-		expectation=(bwtLength-length)*barP;
-		variance+=barP*(1-barP);
-
-		// Second term of the variance
-		variance-=barPSquare*(((bwtLength-1)<<1)-3*length+2)*(length-1);
 
 		// $f(v)$ and $g(v)$
-		longestBorderLength=0;
-		if (rightLength>0) {
-			longestBorderLength=longestBorder.length;
-			if (tmpString==null) tmpString=(BernoulliSubstring)getInstance();  // Executed only once
+		if (longestBorderLength==0) {
+			f=0; g=0;
+		}
+		else {
 			backupPointer=stack.getPosition();
 			stack.setPosition(pointerStack.getElementAt(length-longestBorderLength-1));
+			if (tmpString==null) tmpString=(BernoulliSubstring)getInstance();  // Executed at most once
 			tmpString.read(stack,true,true);
 			stack.setPosition(backupPointer);
 			x=Math.exp(tmpString.logBarP);
-			longestBorderG=((BernoulliSubstring)longestBorder).g;
 			f = x*( bwtLength-(length<<1)+longestBorderLength +
-			        ((BernoulliSubstring)longestBorder).f-((length-longestBorderLength)<<1)*longestBorderG );
+					longestBorderF-((length-longestBorderLength)<<1)*longestBorderG );
 			g = x*(1+longestBorderG);
-			variance+=2*barP*f;
 		}
 
-		// Probability of observing $frequency()$ or more occurrences of $v$ in a random
-		// string. Uses the Chen-Stein method: see Section 6 of \cite{apostolico2000efficient}.
-		f=frequency();
-		if (f<=Integer.MAX_VALUE && (length-longestBorderLength)/(double)length>Constants.GG*oneOverLogTextLength && textLength>Constants.GG*length) {
+		out[0]=logBarP; out[1]=barP; out[2]=barPSquare; out[3]=f; out[4]=g;
+	}
+
+
+	/**
+	 * @param out 0=expectation; 1=variance; 2=probability of observing $frequency$ or
+	 * more occurrences in a random string (uses the Chen-Stein method: see Section 6 of
+	 * \cite{apostolico2000efficient}); 3=error in $out[2]$ from the Chen-Stein method if
+	 * a Poisson distribution was used, or -1 if a normal distribution was used.
+	 *
+	 * Remark: because of limitations in $PoissonDistribution$, the Poisson estimation is
+	 * performed only if $frequency$ can be represented as an integer.
+	 */
+	private final void getExpectationAndVariance(long length, double barP, double barPSquare, double f, long frequency, long longestBorderLength, double[] out) {
+		double expectation, variance, b1, b2, pValue, pValueError;
+
+		expectation=(bwtLength-length)*barP;
+		variance=barP*(1-barP);  // First term of the variance
+		variance-=barPSquare*(((bwtLength-1)<<1)-3*length+2)*(length-1);  // Second term of the variance
+		if (longestBorderLength>0) variance+=2*barP*f;
+
+		if (frequency<=Integer.MAX_VALUE && (length-longestBorderLength)/(double)length>Constants.GG*oneOverLogTextLength && textLength>Constants.GG*length) {
 			b1 = barPSquare*( ((length*textLength)<<1) - textLength -3*length*length + (length<<2) - 1);
 			b2 = variance-expectation+b1;
 			pValueError=b1+b2;
@@ -145,12 +222,31 @@ public class BernoulliSubstring extends BorderSubstring {
 			pValueError=-1;
 		}
 		else {
-			pValue=-1;
-			pValueError=-1;
+			pValue=-1; pValueError=-1;
 		}
 
-		// Right-extensions of $v$
-		// ...
+		out[0]=expectation; out[1]=variance; out[2]=pValue; out[3]=pValueError;
+	}
+
+
+	/**
+	 * Saves in $out$ the measures of surprise described in \cite{apostolico2003monotony},
+	 * Table 3. Remark: some of these measures are not always monotonic inside an
+	 * equivalence class, so iterating just over maximal repeats and over strings that
+	 * have a maximal repeat as an infix does not guarantee to find all the significant
+	 * over- and under-represented substrings.
+	 */
+	private static final void getScores(double frequency, double expectation, double variance, double barP, double[] out) {
+		out[0]=frequency-expectation;
+		out[1]=frequency/expectation;
+		out[2]=(frequency-expectation)/expectation;
+		out[3]=(frequency-expectation)/Math.sqrt(expectation);
+		out[4]=Math.abs(frequency-expectation)/Math.sqrt(expectation);  // Not always monotonic
+		out[5]=(frequency-expectation)*(frequency-expectation)/expectation;  // Not always monotonic
+		out[6]=(frequency-expectation)/Math.sqrt(expectation*(1-barP));  // Not always monotonic
+		out[7]=expectation/Math.sqrt(variance);  // Not always monotonic
+		out[8]=(frequency-expectation)/Math.sqrt(variance);  // Not always monotonic
+		out[9]=Math.abs((frequency-expectation)/Math.sqrt(variance));  // Not always monotonic
 	}
 
 }

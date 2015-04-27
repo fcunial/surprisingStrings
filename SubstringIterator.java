@@ -208,23 +208,23 @@ blockSize=2;
 			for (i=0; i<windowSize; i++) leftExtensions[c+1].bwtIntervals[positions[windowFirst+i].row][positions[windowFirst+i].column]=C[c]+(blockCounts[previousBlock].getElementAt(c)+multirankOutput[c][i])+(positions[windowFirst+i].column==0?0:-1);
 		}
 
-		// Signaling to the left-extensions of $w$, and pushing them onto $stack$ using
+		// Initializing the left-extensions of $w$, and pushing them onto $stack$ using
 		// the stack trick.
+		w.visited(stack,characterStack,pointerStack,leftExtensions);
 		w.pop(stack,true);  // Removing TAIL and TAIL' from the stack
 		w.markAsExtended(stack);
 		if (w.length>0) {
-			characterStack.push(w.firstCharacter);  // Needed for calls to $Substring.getSequence()$ inside $Substring.visited()$ to be successful
+			characterStack.push(w.firstCharacter);  // Needed for calls to $Substring.getSequence()$ inside $Substring.init()$ to be successful
 			pointerStack.push(w.stackPointers[0]);
 		}
 		extension=null; pushed=false;
-		w.fillBuffer(extensionBuffer);
+		w.fillBuffer(extensionBuffer,true);
 		maxFrequency=0; maxExtension=-1;
 		for (c=0; c<alphabetLength+1; c++) {
 			extension=leftExtensions[c];
 			frequency=extension.frequency();
 			if (frequency>0) {
 				extension.init(w,c-1,stack,characterStack,pointerStack,extensionBuffer);
-				extension.visited(stack,characterStack,pointerStack);
 				if (extension.shouldBeExtendedLeft()) {
 					pushed=true;
 					shouldBeExtendedLeft[c]=true;
@@ -259,7 +259,7 @@ blockSize=2;
 				}
 			}
 		}
-		w.emptyBuffer(extensionBuffer);
+		w.emptyBuffer(extensionBuffer,true);
 		out[1]--;
 		if (w.length<=maxStringLengthToReport) out[2]--;
 		stack.setPosition(pushed?previous:w.stackPointers[0]);
@@ -337,7 +337,6 @@ blockSize=2;
 		// artificial string, except for the stacks of threads different from $threads[0]$
 		// immediately after their creation.
 		Substring epsilon = SUBSTRING_CLASS.getEpsilon(C);
-		epsilon.visited(threads[0].stack,threads[0].characterStack,threads[0].pointerStack);
 		epsilon.push(threads[0].stack);
 		threads[0].stack.setPosition(0);
 		epsilon.deallocate(); epsilon=null;

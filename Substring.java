@@ -196,7 +196,7 @@ public class Substring {
 
 	/**
 	 * Initializes string $v$ from $suf(v)$ and from the current setting of
-	 * $bwtIntervals$.
+	 * $bwtIntervals$. At this point the left-extensions of $v$ are not known yet.
 	 *
 	 * @param firstCharacter first character of $v$; -1 indicates $#$;
 	 * @param buffer reusable memory area in which $suffix$ has stored additional
@@ -216,13 +216,13 @@ public class Substring {
 	 * $buffer[i]=-1$ for all $i \in [0..buffer.length]$, and that
 	 * $buffer.length>=alphabetLength+1$.
 	 */
-	protected void fillBuffer(long[] buffer) { }
+	protected void fillBuffer(long[] buffer, boolean flag) { }
 
 
 	/**
 	 * Returns $buffer$ to the empty state by undoing what has been done by $fillBuffer$.
 	 */
-	protected void emptyBuffer(long[] buffer) { }
+	protected void emptyBuffer(long[] buffer, boolean flag) { }
 
 
 	/**
@@ -235,9 +235,12 @@ public class Substring {
 
 
 	/**
-	 * Signal produced by $SubstringIterator$ when it visits $v$
+	 * Signal produced by $SubstringIterator$ after it has initialized $v$ and after it
+	 * has extended it to the left. This signal is launched only for strings that have
+	 * been pushed on the stack, i.e. only for strings such that $shouldBeExtendedLeft$ is
+	 * true.
 	 */
-	protected void visited(Stream stack, RigidStream characterStack, SimpleStream pointerStack) { }
+	protected void visited(Stream stack, RigidStream characterStack, SimpleStream pointerStack, Substring[] leftExtensions) { }
 
 
 	/**

@@ -398,9 +398,10 @@ public class Tests {
 			return new TestBernoulliSubstring(alphabetLength,log2alphabetLength,bwtLength,log2bwtLength,text);
 		}
 
-		protected void visited(Stream stack, RigidStream characterStack, SimpleStream pointerStack) {
+		protected void visited(Stream stack, RigidStream characterStack, SimpleStream pointerStack, Substring[] leftExtensions) {
+			super.visited(stack,characterStack,pointerStack,leftExtensions);
 			if (length>bwtLength) {
-				System.err.println("ERROR: GENERATED A SUBSTRING LONGER THAN THE TEXT PLUS ONE: (length="+length+")");
+				System.err.println("ERROR: GENERATED A RIGHT-MAXIMAL SUBSTRING LONGER THAN THE TEXT PLUS ONE: (length="+length+")");
 				System.err.println("text: "+text);
 				System.exit(1);
 			}
@@ -426,14 +427,12 @@ System.out.println();
 			}
 
 			// Right-maximality
-			if (rightContext>1) {
-				if (startsWithSharp) {
-					System.err.println("ERROR: GENERATED A RIGHT-MAXIMAL SUBSTRING THAT STARTS WITH #: "+str);
-					System.err.println("text: "+text);
-					System.exit(1);
-				}
-				synchronized(iteratorSubstrings) { iteratorSubstrings.add(str); }
+			if (startsWithSharp) {
+				System.err.println("ERROR: GENERATED A RIGHT-MAXIMAL SUBSTRING THAT STARTS WITH #: "+str);
+				System.err.println("text: "+text);
+				System.exit(1);
 			}
+			synchronized(iteratorSubstrings) { iteratorSubstrings.add(str); }
 		}
 	}
 
@@ -443,7 +442,7 @@ System.out.println();
 	 * small strings.
 	 */
 	private static final boolean test_rightMaximalSubstringsWithBorder() {
-		final int STRING_LENGTH = 200;
+		final int STRING_LENGTH = 100;
 		final int N_ITERATIONS = 100;
 		int i, j, k, c, sharpPosition;
 		int[] alphabet = new int[] {0,1,2,3};
@@ -595,9 +594,10 @@ System.out.println();
 			}
 		}
 */
-		protected void visited(Stream stack, RigidStream characterStack, SimpleStream pointerStack) {
+		protected void visited(Stream stack, RigidStream characterStack, SimpleStream pointerStack, Substring[] leftExtensions) {
+			super.visited(stack,characterStack,pointerStack,leftExtensions);
 			if (length>bwtLength) {
-				System.err.println("ERROR: GENERATED A SUBSTRING LONGER THAN THE TEXT PLUS ONE: (length="+length+")");
+				System.err.println("ERROR: GENERATED A RIGHT-MAXIMAL SUBSTRING LONGER THAN THE TEXT PLUS ONE: (length="+length+")");
 				System.err.println("text: "+text);
 				System.exit(1);
 			}
@@ -682,18 +682,21 @@ if (str.equals("000")) {
 			}
 
 			// Right-maximality
-			if (rightContext>1) {
-				if (startsWithSharp) {
-					System.err.println("ERROR: GENERATED A RIGHT-MAXIMAL SUBSTRING THAT STARTS WITH #: "+str);
-					System.err.println("text: "+text);
-					System.exit(1);
-				}
-				synchronized(iteratorSubstringsWithBorder) {
-//System.out.println("{"+longestBorderLeftCharacter+","+longestBorderRightCharacter+","+(longestBorder==null?"":longestBorder.length)+"} ");
-					if (rightLength==0) iteratorSubstringsWithBorder.add(new StringWithBorder(str,0,-1,-1));
-					else iteratorSubstringsWithBorder.add(new StringWithBorder(str,longestBorder.length,leftCharacters[longestBorderLeftCharacter],
-																										rightCharacters[longestBorderRightCharacter]));
-				}
+			if (startsWithSharp) {
+				System.err.println("ERROR: GENERATED A RIGHT-MAXIMAL SUBSTRING THAT STARTS WITH #: "+str);
+				System.err.println("text: "+text);
+				System.exit(1);
+			}
+			synchronized(iteratorSubstringsWithBorder) {
+//System.out.println("{"+longestBorderLeftCharacter+","+longestBorderRightCharacter+","+rightLength+","+longestBorderLength+","+(longestBorder==null?"":longestBorder.length)+"} "+str);
+				if (rightLength==0) iteratorSubstringsWithBorder.add(new StringWithBorder(str,0,-1,-1));
+				else iteratorSubstringsWithBorder.add(new StringWithBorder(str,longestBorderLength,leftCharacters[longestBorderLeftCharacter],
+																								   rightCharacters[longestBorderRightCharacter]));
+			}
+			if (longestBorderLength==length) {
+				System.err.println("ERROR: GENERATED A RIGHT-MAXIMAL SUBSTRING WITH LONGEST BORDER EQUAL TO THE SUBSTRING: "+str+" longestBorder.length="+longestBorder.length+" longestBorderLength="+longestBorderLength);
+				System.err.println("text: "+text);
+				System.exit(1);
 			}
 		}
 	}
@@ -777,9 +780,9 @@ if (str.equals("000")) {
 				substrings[i].hasBeenExtended=random.nextBoolean();
 				for (j=i-1; j>=0; j--) {
 					if (substrings[j].hasBeenExtended) {
-						substrings[j].fillBuffer(extensionBuffer);
+						substrings[j].fillBuffer(extensionBuffer,true);
 						substrings[i].init(substrings[j],random.nextInt(4),stack,characterStack,pointerStack,extensionBuffer);
-						substrings[j].emptyBuffer(extensionBuffer);
+						substrings[j].emptyBuffer(extensionBuffer,true);
 						break;
 					}
 				}
@@ -950,9 +953,10 @@ if (str.equals("000")) {
 			return new TestRightMaximalSubstring(alphabetLength,log2alphabetLength,bwtLength,log2bwtLength,text);
 		}
 
-		protected void visited(Stream stack, RigidStream characterStack, SimpleStream pointerStack) {
+		protected void visited(Stream stack, RigidStream characterStack, SimpleStream pointerStack, Substring[] leftExtensions) {
+			super.visited(stack,characterStack,pointerStack,leftExtensions);
 			if (length>bwtLength) {
-				System.err.println("ERROR: GENERATED A SUBSTRING LONGER THAN THE TEXT PLUS ONE: (length="+length+")");
+				System.err.println("ERROR: GENERATED A RIGHT-MAXIMAL SUBSTRING LONGER THAN THE TEXT PLUS ONE: (length="+length+")");
 				System.err.println("text: "+text);
 				System.exit(1);
 			}
@@ -978,14 +982,12 @@ System.out.println();
 			}
 
 			// Right-maximality
-			if (rightContext>1) {
-				if (startsWithSharp) {
-					System.err.println("ERROR: GENERATED A RIGHT-MAXIMAL SUBSTRING THAT STARTS WITH #: "+str);
-					System.err.println("text: "+text);
-					System.exit(1);
-				}
-				synchronized(iteratorSubstrings) { iteratorSubstrings.add(str); }
+			if (startsWithSharp) {
+				System.err.println("ERROR: GENERATED A RIGHT-MAXIMAL SUBSTRING THAT STARTS WITH #: "+str);
+				System.err.println("text: "+text);
+				System.exit(1);
 			}
+			synchronized(iteratorSubstrings) { iteratorSubstrings.add(str); }
 		}
 	}
 
@@ -1120,7 +1122,8 @@ System.out.println();
 			return new TestSubstring(alphabetLength,log2alphabetLength,bwtLength,log2bwtLength,text);
 		}
 
-		protected void visited(Stream stack, RigidStream characterStack, SimpleStream pointerStack) {
+		protected void init(Substring suffix, int firstCharacter, Stream stack, RigidStream characterStack, SimpleStream pointerStack, long[] buffer) {
+			super.init(suffix,firstCharacter,stack,characterStack,pointerStack,buffer);
 			if (length>bwtLength) {
 				System.err.println("ERROR: GENERATED A SUBSTRING LONGER THAN THE TEXT PLUS ONE: (length="+length+")");
 				System.err.println("text: "+text);
