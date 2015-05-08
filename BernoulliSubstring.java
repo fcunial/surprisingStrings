@@ -128,7 +128,7 @@ public class BernoulliSubstring extends BorderSubstring {
 		// Substrings whose infix is a maximal repeat
 		for (i=1; i<alphabetLength+1; i++) {  // Discarding $#$
 			aWFrequency=leftExtensions[i].frequency();
-			if (aWFrequency==0) continue;
+			if (aWFrequency==0 || ((BernoulliSubstring)leftExtensions[i]).rightContext==1) continue;  // Discarding left-extensions that are not right-maximal
 			leftExtensions[i].fillBuffer(extensionBuffer,false);
 			for (j=1; j<alphabetLength+1; j++) {
 				if (bwtIntervals[j][1]<bwtIntervals[j][0]) continue;
@@ -216,7 +216,7 @@ public class BernoulliSubstring extends BorderSubstring {
 			b1 = barPSquare*( ((length*textLength)<<1) - textLength -3*length*length + (length<<2) - 1);
 			b2 = variance-expectation+b1;
 			pValueError=b1+b2;
-			if (Constants.TIGHT_POISSON_ERROR) pValueError*=-Math.expm1(0D-expectation)/expectation;
+			if (Constants.TIGHT_POISSON_ERROR) pValueError*=-StrictMath.expm1(0D-expectation)/expectation;  // $StrictMath.expm1$ is faster than $Math.expm1$ from experiments: see $FastMathTestPerformance.txt$.
 			pValue=1D-(new PoissonDistribution(expectation)).cumulativeProbability((int)f);
 		}
 		else if (variance>0) {

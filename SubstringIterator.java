@@ -59,7 +59,7 @@ public class SubstringIterator {
 		this.alphabetLength=alphabetLength;
 		log2alphabetLength=Utils.log2(alphabetLength);
 		long blockSize = Suffixes.blockwiseBWT_getBlockSize(stringLength,log2stringLength,log2alphabetLength);
-blockSize=2;
+//blockSize=2;
 		long nb = Utils.divideAndRoundUp(stringLength,blockSize);  // This value is just an upper bound: $Suffixes.blockwiseBWT$ will set the effective number of blocks.
 		if (nb<4) nBlocks=4;
 		else if (nb>Integer.MAX_VALUE) nBlocks=Integer.MAX_VALUE;
@@ -208,11 +208,7 @@ blockSize=2;
 			for (i=0; i<windowSize; i++) leftExtensions[c+1].bwtIntervals[positions[windowFirst+i].row][positions[windowFirst+i].column]=C[c]+(blockCounts[previousBlock].getElementAt(c)+multirankOutput[c][i])+(positions[windowFirst+i].column==0?0:-1);
 		}
 
-		// Initializing the left-extensions of $w$, and pushing them onto $stack$ using
-		// the stack trick.
-		w.visited(stack,characterStack,pointerStack,leftExtensions);
-		w.pop(stack,true);  // Removing TAIL and TAIL' from the stack
-		w.markAsExtended(stack);
+		// Initializing the left-extensions of $w$
 		if (w.length>0) {
 			characterStack.push(w.firstCharacter);  // Needed for calls to $Substring.getSequence()$ inside $Substring.init()$ to be successful
 			pointerStack.push(w.stackPointers[0]);
@@ -235,6 +231,16 @@ blockSize=2;
 				}
 			}
 		}
+		w.emptyBuffer(extensionBuffer,true);
+
+		// Visiting $w$ and popping it from $stack$
+		w.visited(stack,characterStack,pointerStack,leftExtensions);
+		w.pop(stack,true);  // Removing TAIL and TAIL' from the stack
+		w.markAsExtended(stack);
+		out[1]--;
+		if (w.length<=maxStringLengthToReport) out[2]--;
+
+		// Pushing the left-extensions of $w$ onto $stack$ using the stack trick
 		previous=w.stackPointers[0];
 		isShort=w.length+1<=maxStringLengthToReport;
 		if (pushed) {
@@ -259,9 +265,8 @@ blockSize=2;
 				}
 			}
 		}
-		w.emptyBuffer(extensionBuffer,true);
-		out[1]--;
-		if (w.length<=maxStringLengthToReport) out[2]--;
+
+		// Resetting the top of the stack
 		stack.setPosition(pushed?previous:w.stackPointers[0]);
 	}
 
