@@ -1,8 +1,8 @@
 /**
  * Instructs $SubstringIterator$ to visit only the right-maximal substrings $w$ of a
  * string. $intervals[c]$ contains the interval of $wc$ for all $c \in \Sigma \cup \{#\}$,
- * in lexicographic order (see \cite{belazzougui2014linear}). This choice is not suitable
- * for large alphabets.
+ * in lexicographic order, following the approach described in \cite{belazzougui2014linear}.
+ * This choice is not suitable for large alphabets.
  */
 public class RightMaximalSubstring extends Substring {
 
@@ -16,43 +16,52 @@ public class RightMaximalSubstring extends Substring {
 	protected RightMaximalSubstring() { }
 
 
-	protected RightMaximalSubstring(int alphabetLength, int log2alphabetLength, long bwtLength, int log2bwtLength) {
+	protected RightMaximalSubstring(int alphabetLength, int log2alphabetLength, int bitsToEncodeAlphabetLength, long bwtLength, int log2BWTLength, int bitsToEncodeBWTLength) {
 		this.alphabetLength=alphabetLength;
 		this.log2alphabetLength=log2alphabetLength;
+		this.bitsToEncodeAlphabetLength=bitsToEncodeAlphabetLength;
 		this.bwtLength=bwtLength;
-		this.log2bwtLength=log2bwtLength;
+		this.log2BWTLength=log2BWTLength;
+		this.bitsToEncodeBWTLength=bitsToEncodeBWTLength;
+		textLength=bwtLength-1;
+		oneOverLogTextLength=1D/Math.log(textLength);
 		MAX_INTERVALS=alphabetLength+1;
 		BITS_TO_ENCODE_MAX_INTERVALS=Utils.bitsToEncode(MAX_INTERVALS);
 		BWT_INTERVALS_ARE_SORTED=true;
 		bwtIntervals = new long[MAX_INTERVALS][2];
-		MAX_POINTERS=MIN_POINTERS;
-		BITS_TO_ENCODE_MAX_POINTERS=Utils.bitsToEncode(MAX_POINTERS);
-		stackPointers = new long[MAX_POINTERS];
 	}
 
 
-	protected Substring getInstance(int alphabetLength, int log2alphabetLength, long bwtLength, int log2bwtLength) {
-		return new RightMaximalSubstring(alphabetLength,log2alphabetLength,bwtLength,log2bwtLength);
+	protected Substring getInstance() {
+		return new RightMaximalSubstring(alphabetLength,log2alphabetLength,bitsToEncodeAlphabetLength,bwtLength,log2BWTLength,bitsToEncodeBWTLength);
 	}
 
 
 	protected Substring getEpsilon(long[] C) {
-		Substring out = getInstance();
-		out.length=0;
+		RightMaximalSubstring out = (RightMaximalSubstring)getInstance();
+
+		// $bwtIntervals$
 		out.nIntervals=alphabetLength+1;
-		out.nPointers=MIN_POINTERS;
-
-		// $#$
-		out.bwtIntervals[0][0]=0;
+		out.bwtIntervals[0][0]=0;  // $#$
 		out.bwtIntervals[0][1]=0;
-
-		// Other characters
-		for (int i=0; i<alphabetLength-1; i++) {
+		for (int i=0; i<alphabetLength-1; i++) {  // Other characters
 			out.bwtIntervals[i+1][0]=C[i];
 			out.bwtIntervals[i+1][1]=C[i+1]-1;
 		}
 		out.bwtIntervals[alphabetLength][0]=C[alphabetLength-1];
 		out.bwtIntervals[alphabetLength][1]=bwtLength-1;
+
+		// Other variables
+		out.address=-1;
+		out.log2address=-1;
+		out.previousAddress=-1;
+		out.length=0;
+		out.log2length=-1;
+		out.bitsToEncodeLength=1;
+		out.firstCharacter=-1;
+		out.hasBeenExtended=false;
+		out.hasBeenStolen=false;
+		out.computeRightContext();
 
 		return out;
 	}
@@ -66,8 +75,8 @@ public class RightMaximalSubstring extends Substring {
 	}
 
 
-	protected void init(Substring suffix, int firstCharacter, Stream stack, RigidStream characterStack, SimpleStream pointerStack, long[] buffer) {
-		super.init(suffix,firstCharacter,stack,characterStack,pointerStack,buffer);
+	protected void initAfterExtending(Substring suffix, int firstCharacter, RigidStream characterStack, int[] buffer) {
+		super.initAfterExtending(suffix,firstCharacter,characterStack,buffer);
 		computeRightContext();
 	}
 
@@ -82,6 +91,13 @@ public class RightMaximalSubstring extends Substring {
 
 	protected long frequency() {
 		return bwtIntervals[alphabetLength][1]>=bwtIntervals[0][0]?bwtIntervals[alphabetLength][1]-bwtIntervals[0][0]+1:0;
+	}
+
+
+	public String toString() {
+		String out = super.toString()+" | ";
+		out+="rightContext="+rightContext+" ";
+		return out;
 	}
 
 }

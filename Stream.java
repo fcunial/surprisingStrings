@@ -190,6 +190,31 @@ public class Stream {
 		regions[pointerRegion][pointerCell]|=Utils.oneSelectors1[64-pointerOffset-1];
 	}
 
+
+	public String toString() {
+		String out = "";
+		String str;
+		int i, j;
+		for (i=0; i<topRegion; i++) {
+			for (j=0; j<LONGS_PER_REGION; j++) {
+				str=Long.toBinaryString(regions[i][j]);
+				while (str.length()<64) str="0"+str;
+				out+=str;
+			}
+		}
+		for (j=0; j<topCell; j++) {
+			str=Long.toBinaryString(regions[topRegion][j]);
+			while (str.length()<64) str="0"+str;
+			out+=str;
+		}
+		str=Long.toBinaryString(regions[topRegion][topCell]);
+		while (str.length()<64) str="0"+str;
+		str=str.substring(0,topOffset);
+		out+=str;
+		return out;
+	}
+
+
 }
 
 

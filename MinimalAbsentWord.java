@@ -9,25 +9,31 @@ public class MinimalAbsentWord extends MaximalRepeat {
 	protected int lastMinimalAbsent;
 
 	/**
+	 * Scratch space, allocated at most once.
+	 */
+	private MinimalAbsentWord tmpString;
+
+
+	/**
 	 * Artificial no-argument constructor, used just to avoid compile-time errors.
 	 * See the no-argument constructor of $Substring$ for details.
 	 */
 	protected MinimalAbsentWord() { }
 
 
-	protected MinimalAbsentWord(int alphabetLength, int log2alphabetLength, long bwtLength, int log2bwtLength) {
-		super(alphabetLength,log2alphabetLength,bwtLength,log2bwtLength);
+	protected MinimalAbsentWord(int alphabetLength, int log2alphabetLength, int bitsToEncodeAlphabetLength, long bwtLength, int log2BWTLength, int bitsToEncodeBWTLength) {
+		super(alphabetLength,log2alphabetLength,bitsToEncodeAlphabetLength,bwtLength,log2BWTLength,bitsToEncodeBWTLength);
 		minimalAbsent = new int[alphabetLength*alphabetLength][2];
 	}
 
 
-	protected Substring getInstance(int alphabetLength, int log2alphabetLength, long bwtLength, int log2bwtLength) {
-		return new MinimalAbsentWord(alphabetLength,log2alphabetLength,bwtLength,log2bwtLength);
+	protected Substring getInstance() {
+		return new MinimalAbsentWord(alphabetLength,log2alphabetLength,bitsToEncodeAlphabetLength,bwtLength,log2BWTLength,bitsToEncodeBWTLength);
 	}
 
 
-	protected void visited(Stream stack, RigidStream characterStack, SimpleStream pointerStack, Substring[] leftExtensions) {
-		super.visited(stack,characterStack,pointerStack,leftExtensions);
+	protected void visited(Stream stack, RigidStream characterStack, SimpleStream pointerStack, Substring[] cache, Substring[] leftExtensions) {
+		super.visited(stack,characterStack,pointerStack,cache,leftExtensions);
 		if (leftContext<2) return;
 
 		int i, j;

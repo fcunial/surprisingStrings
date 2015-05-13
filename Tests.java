@@ -137,7 +137,7 @@ public class Tests {
 			System.exit(1);
 		}
 		else System.out.println("BorderSubstring \t\t\t [   OK   ]");
-		// Testing $MinimalAbsentSubstring$ (subsumes a test for maximal repeats)
+		// Testing $MinimalAbsentWord$ (subsumes a test for maximal repeats)
 		if (!test_MinimalAbsentWord()) {
 			System.err.println("TestMinimalAbsentWord \t\t\t [ FAILED ]");
 			System.exit(1);
@@ -149,9 +149,6 @@ public class Tests {
 			System.exit(1);
 		}
 		else System.out.println("BernoulliSubstring \t\t\t [   OK   ]");
-
-
-
 	}
 
 
@@ -384,7 +381,7 @@ public class Tests {
 			Constants.N_THREADS=2;
 			Constants.MAX_MEMORY=10;
 			iteratorSubstrings = new HashSet<String>();
-			iterator = new SubstringIterator(string,alphabet,4,new TestMinimalAbsentWord(4,2,STRING_LENGTH+1,Utils.log2(STRING_LENGTH+1),stringString));
+			iterator = new SubstringIterator(string,alphabet,4,new TestMinimalAbsentWord(4,Utils.log2(4),Utils.bitsToEncode(4),STRING_LENGTH+1,Utils.log2(STRING_LENGTH+1),Utils.bitsToEncode(STRING_LENGTH+1),stringString));
 			System.out.print("(");
 			iterator.run();
 			System.out.print(")");
@@ -422,17 +419,17 @@ public class Tests {
 	private static class TestMinimalAbsentWord extends MinimalAbsentWord {
 		private String text;
 
-		public TestMinimalAbsentWord(int alphabetLength, int log2alphabetLength, long bwtLength, int log2bwtLength, String text) {
-			super(alphabetLength,log2alphabetLength,bwtLength,log2bwtLength);
+		public TestMinimalAbsentWord(int alphabetLength, int log2alphabetLength, int bitsToEncodeAlphabetLength, long bwtLength, int log2BWTLength, int bitsToEncodeBWTLength, String text) {
+			super(alphabetLength,log2alphabetLength,bitsToEncodeAlphabetLength,bwtLength,log2BWTLength,bitsToEncodeBWTLength);
 			this.text=text;
 		}
 
 		protected Substring getInstance() {
-			return new TestMinimalAbsentWord(alphabetLength,log2alphabetLength,bwtLength,log2bwtLength,text);
+			return new TestMinimalAbsentWord(alphabetLength,log2alphabetLength,bitsToEncodeAlphabetLength,bwtLength,log2BWTLength,bitsToEncodeBWTLength,text);
 		}
 
-		protected void visited(Stream stack, RigidStream characterStack, SimpleStream pointerStack, Substring[] leftExtensions) {
-			super.visited(stack,characterStack,pointerStack,leftExtensions);
+		protected void visited(Stream stack, RigidStream characterStack, SimpleStream pointerStack, Substring[] cache, Substring[] leftExtensions) {
+			super.visited(stack,characterStack,pointerStack,cache,leftExtensions);
 			if (leftContext<2) return;
 
 			if (length>bwtLength) {
@@ -531,7 +528,7 @@ System.out.println();
 			Constants.N_THREADS=2;
 			Constants.MAX_MEMORY=10;
 			iteratorSubstrings = new HashSet<String>();
-			iterator = new SubstringIterator(string,alphabet,4,new TestBernoulliSubstring(4,2,STRING_LENGTH+1,Utils.log2(STRING_LENGTH+1),stringString));
+			iterator = new SubstringIterator(string,alphabet,4,new TestBernoulliSubstring(4,Utils.log2(4),Utils.bitsToEncode(4),STRING_LENGTH+1,Utils.log2(STRING_LENGTH+1),Utils.bitsToEncode(STRING_LENGTH+1),stringString));
 			System.out.print("(");
 			iterator.run();
 			System.out.print(")");
@@ -569,17 +566,17 @@ System.out.println();
 	private static class TestBernoulliSubstring extends BernoulliSubstring {
 		private String text;
 
-		public TestBernoulliSubstring(int alphabetLength, int log2alphabetLength, long bwtLength, int log2bwtLength, String text) {
-			super(alphabetLength,log2alphabetLength,bwtLength,log2bwtLength);
+		public TestBernoulliSubstring(int alphabetLength, int log2alphabetLength, int bitsToEncodeAlphabetLength, long bwtLength, int log2BWTLength, int bitsToEncodeBWTLength, String text) {
+			super(alphabetLength,log2alphabetLength,bitsToEncodeAlphabetLength,bwtLength,log2BWTLength,bitsToEncodeBWTLength);
 			this.text=text;
 		}
 
 		protected Substring getInstance() {
-			return new TestBernoulliSubstring(alphabetLength,log2alphabetLength,bwtLength,log2bwtLength,text);
+			return new TestBernoulliSubstring(alphabetLength,log2alphabetLength,bitsToEncodeAlphabetLength,bwtLength,log2BWTLength,bitsToEncodeBWTLength,text);
 		}
 
-		protected void visited(Stream stack, RigidStream characterStack, SimpleStream pointerStack, Substring[] leftExtensions) {
-			super.visited(stack,characterStack,pointerStack,leftExtensions);
+		protected void visited(Stream stack, RigidStream characterStack, SimpleStream pointerStack, Substring[] cache, Substring[] leftExtensions) {
+			super.visited(stack,characterStack,pointerStack,cache,leftExtensions);
 			if (length>bwtLength) {
 				System.err.println("ERROR: GENERATED A RIGHT-MAXIMAL SUBSTRING LONGER THAN THE TEXT PLUS ONE: (length="+length+")");
 				System.err.println("text: "+text);
@@ -639,11 +636,17 @@ System.out.println();
 			stringString="";
 			string.clear();
 			for (j=0; j<STRING_LENGTH; j++) {
- 				c=random.nextInt(3);
+ 				c=random.nextInt(4);
  				stringString+=""+c;
  				string.push(c);
  			}
 
+/*
+String zString = "03033331";
+stringString+=zString;
+for (j=0; j<zString.length(); j++) string.push(Integer.parseInt(zString.substring(j,j+1)));
+System.out.println("string.length()="+string.length()+" string: "+stringString+" bitsToEncodeBWTLength="+Utils.bitsToEncode(STRING_LENGTH+1));
+*/
 			// Trivial enumeration of all distinct right-maximal substrings
 			boolean isRightMaximal;
 			int position, rightChar, previousRightChar;
@@ -679,7 +682,7 @@ System.out.println();
 			Constants.N_THREADS=2;
 			Constants.MAX_MEMORY=10;
 			iteratorSubstringsWithBorder = new HashSet<StringWithBorder>();
-			iterator = new SubstringIterator(string,alphabet,4,new TestBorderSubstring(4,2,STRING_LENGTH+1,Utils.log2(STRING_LENGTH+1),stringString));
+			iterator = new SubstringIterator(string,alphabet,4,new TestBorderSubstring(4,Utils.log2(4),Utils.bitsToEncode(4),STRING_LENGTH+1,Utils.log2(STRING_LENGTH+1),Utils.bitsToEncode(STRING_LENGTH+1),stringString));
 			System.out.print("(");
 			iterator.run();
 			System.out.print(")");
@@ -730,11 +733,11 @@ System.out.println();
 							System.err.println("String "+iteratorSubstringsArray[x].string+" has right character "+(iteratorSubstringsArray[x].string.charAt(a-1))+", but iterator reports right character "+iteratorSubstringsArray[x].rightCharacter);
 							return false;
 						}
-						if (iteratorSubstringsArray[x].leftCharacter!=Integer.parseInt(""+iteratorSubstringsArray[x].string.charAt(ell-a))) {
+/*						if (iteratorSubstringsArray[x].leftCharacter!=Integer.parseInt(""+iteratorSubstringsArray[x].string.charAt(ell-a))) {
 							System.err.println("String "+iteratorSubstringsArray[x].string+" has left character "+(iteratorSubstringsArray[x].string.charAt(ell-a))+", but iterator reports left character "+iteratorSubstringsArray[x].leftCharacter);
 							return false;
 						}
-						break;
+*/						break;
 					}
 				}
 			}
@@ -750,13 +753,13 @@ System.out.println();
 		private String text;
 		private String str;
 
-		public TestBorderSubstring(int alphabetLength, int log2alphabetLength, long bwtLength, int log2bwtLength, String text) {
-			super(alphabetLength,log2alphabetLength,bwtLength,log2bwtLength);
+		public TestBorderSubstring(int alphabetLength, int log2alphabetLength, int bitsToEncodeAlphabetLength, long bwtLength, int log2BWTLength, int bitsToEncodeBWTLength, String text) {
+			super(alphabetLength,log2alphabetLength,bitsToEncodeAlphabetLength,bwtLength,log2BWTLength,bitsToEncodeBWTLength);
 			this.text=text;
 		}
 
 		protected Substring getInstance() {
-			return new TestBorderSubstring(alphabetLength,log2alphabetLength,bwtLength,log2bwtLength,text);
+			return new TestBorderSubstring(alphabetLength,log2alphabetLength,bitsToEncodeAlphabetLength,bwtLength,log2BWTLength,bitsToEncodeBWTLength,text);
 		}
 /*
 		protected void push(Stream stack) {
@@ -774,8 +777,8 @@ System.out.println();
 			}
 		}
 */
-		protected void visited(Stream stack, RigidStream characterStack, SimpleStream pointerStack, Substring[] leftExtensions) {
-			super.visited(stack,characterStack,pointerStack,leftExtensions);
+		protected void visited(Stream stack, RigidStream characterStack, SimpleStream pointerStack, Substring[] cache, Substring[] leftExtensions) {
+			super.visited(stack,characterStack,pointerStack,cache,leftExtensions);
 			if (length>bwtLength) {
 				System.err.println("ERROR: GENERATED A RIGHT-MAXIMAL SUBSTRING LONGER THAN THE TEXT PLUS ONE: (length="+length+")");
 				System.err.println("text: "+text);
@@ -789,7 +792,9 @@ System.out.println();
 			if (startsWithSharp) str="#";
 			else str="";
 			for (int i=0; i<(startsWithSharp?length-1:length); i++) str+=""+sequence.getElementAt(i);
-/*System.out.println("generated substring "+str+" with the following intervals: (isRightMaximal="+isRightMaximal+", stackPointers[2]="+stackPointers[2]+" sequence.bitsPerInt="+sequence.bitsPerInt+")");
+/*
+computeRightContext();
+System.out.println("generated substring "+str+" with the following intervals: (rightContext="+rightContext+")");
 for (int x=0; x<=alphabetLength; x++) {
 	System.out.print("["+bwtIntervals[x][0]+".."+bwtIntervals[x][1]+"] ");
 }
@@ -869,9 +874,9 @@ if (str.equals("000")) {
 			}
 			synchronized(iteratorSubstringsWithBorder) {
 //System.out.println("{"+longestBorderLeftCharacter+","+longestBorderRightCharacter+","+rightLength+","+longestBorderLength+","+(longestBorder==null?"":longestBorder.length)+"} "+str);
-				if (rightLength==0) iteratorSubstringsWithBorder.add(new StringWithBorder(str,0,-1,-1));
-				else iteratorSubstringsWithBorder.add(new StringWithBorder(str,longestBorderLength,leftCharacters[longestBorderLeftCharacter],
-																								   rightCharacters[longestBorderRightCharacter]));
+				if (longestBorderLength==0) iteratorSubstringsWithBorder.add(new StringWithBorder(str,0,-1,-1));
+				else iteratorSubstringsWithBorder.add(new StringWithBorder(str,longestBorderLength,longestBorderLeftCharacter,
+																								   longestBorderRightCharacter));
 			}
 			if (longestBorderLength==length) {
 				System.err.println("ERROR: GENERATED A RIGHT-MAXIMAL SUBSTRING WITH LONGEST BORDER EQUAL TO THE SUBSTRING: "+str+" longestBorder.length="+longestBorder.length+" longestBorderLength="+longestBorderLength);
@@ -924,68 +929,63 @@ if (str.equals("000")) {
 		final int N_TESTS = 100;
 		int i, j, t, index;
 		long previous;
-		long[] extensionBuffer = new long[4+1];
+		int[] extensionBuffer = new int[4+1];
 		for (i=0; i<=4; i++) extensionBuffer[i]=-1;
 		BorderSubstring[] substrings = new BorderSubstring[N_ELEMENTS];
 		Stream stack = new Stream(512);
 		RigidStream characterStack = new RigidStream(2,2);
 		SimpleStream pointerStack = new SimpleStream(2);
-		BorderSubstring w = new BorderSubstring(4,2,N_ELEMENTS,Utils.log2(N_ELEMENTS));
+		BorderSubstring w = new BorderSubstring(4,Utils.log2(4),Utils.bitsToEncode(4),N_ELEMENTS+1,Utils.log2(N_ELEMENTS+1),Utils.bitsToEncode(N_ELEMENTS+1));
 		XorShiftStarRandom random = new XorShiftStarRandom();
 
 		for (t=0; t<N_ITERATIONS; t++) {
 			// Pushing random $BorderSubstring$ objects on the stack
 			stack.clear(true); stack.setPosition(0L);
 			characterStack.clear(true); pointerStack.clear(true);
-			substrings[0] = (BorderSubstring)(w.getEpsilon(new long[4]));  // Artificial bottom of the stack
+			previous=0;
+			substrings[0] = (BorderSubstring)(w.getEpsilon(new long[4]));  // $\epsilon$
 			for (i=0; i<substrings[0].nIntervals; i++) {
 				substrings[0].bwtIntervals[i][0]=0;
 				substrings[0].bwtIntervals[i][1]=0;
 			}
-			substrings[0].push(stack);
-			substrings[1] = (BorderSubstring)(w.getEpsilon(new long[4]));  // $\epsilon$
-			for (i=0; i<substrings[1].nIntervals; i++) {
-				substrings[1].bwtIntervals[i][0]=0;
-				substrings[1].bwtIntervals[i][1]=0;
-			}
-			substrings[1].hasBeenExtended=true;
-			substrings[1].push(stack);
-			previous=substrings[1].stackPointers[0];
-			for (i=2; i<N_ELEMENTS; i++) {
-				substrings[i] = (BorderSubstring)(substrings[0].getInstance());
+			substrings[0].hasBeenExtended=true;
+			substrings[0].push(stack,null);
+			for (i=1; i<N_ELEMENTS; i++) {
+				substrings[i] = (BorderSubstring)(w.getInstance());
 				substrings[i].bwtIntervals[0][0]=random.nextInt(N_ELEMENTS);
 				do { substrings[i].bwtIntervals[0][1]=random.nextInt(N_ELEMENTS); }
 				while (substrings[i].bwtIntervals[0][1]<substrings[i].bwtIntervals[0][0]);
-				substrings[i].stackPointers[1]=previous;
+				substrings[i].previousAddress=previous;
 				substrings[i].hasBeenExtended=random.nextBoolean();
 				for (j=i-1; j>=0; j--) {
 					if (substrings[j].hasBeenExtended) {
 						substrings[j].fillBuffer(extensionBuffer,true);
-						substrings[i].init(substrings[j],random.nextInt(4),stack,characterStack,pointerStack,extensionBuffer);
+						substrings[i].initAfterExtending(substrings[j],random.nextInt(4),characterStack,extensionBuffer);
+						if (substrings[i].hasBeenExtended) substrings[i].initAfterReading(stack,characterStack,pointerStack,null);
 						substrings[j].emptyBuffer(extensionBuffer,true);
 						break;
 					}
 				}
-				substrings[i].push(stack);
-				previous=substrings[i].stackPointers[0];
+				substrings[i].push(stack,null);
+				previous=substrings[i].address;
 			}
 
 			// Testing $read$
 			for (i=0; i<N_TESTS; i++) {
 				index=random.nextInt(N_ELEMENTS);
-				stack.setPosition(substrings[index].stackPointers[0]);
-				w.read(stack,false,false);
+				stack.setPosition(substrings[index].address);
+				w.read(stack,null,false,false,false);
 				if (!w.equals(substrings[index])) {
 					System.err.println("Error in reading "+index+"th string. Real string:");
 					System.err.println(substrings[index]);
-					System.err.println("rightLength="+substrings[index].rightLength);
+					System.err.println("nRight="+substrings[index].nRight);
 					System.out.println("Read string:");
 					System.err.println(w);
-					System.err.println("rightLength="+w.rightLength);
+					System.err.println("nRight="+w.nRight);
 					return false;
 				}
-				stack.setPosition(substrings[index].stackPointers[0]);
-				w.read(stack,true,true);
+				stack.setPosition(substrings[index].address);
+				w.read(stack,null,true,true,true);
 				if (w.frequency()==0||!w.equals(substrings[index])) {
 					System.err.println("Error in readFast");
 					return false;
@@ -995,19 +995,19 @@ if (str.equals("000")) {
 			// Testing $pop$
 			for (i=0; i<N_TESTS; i++) {
 				index=random.nextInt(N_ELEMENTS);
-				stack.setPosition(substrings[N_ELEMENTS-1].stackPointers[0]);
-				for (j=N_ELEMENTS-1; j>index; j--) substrings[j].pop(stack,false);
-				if (stack.getPosition()!=substrings[index].stackPointers[0]) {
+				stack.setPosition(substrings[N_ELEMENTS-1].address);
+				for (j=N_ELEMENTS-1; j>index; j--) substrings[j].pop(stack,null);
+				if (stack.getPosition()!=substrings[index].address) {
 					System.err.println("Error in pop");
 					return false;
 				}
-				w.read(stack,false,false);
+				w.read(stack,null,false,false,false);
 				if (!w.equals(substrings[index])) {
 					System.err.println("Error in pop");
 					return false;
 				}
 				// Pushing back the remaining substrings
-				for (j=index+1; j<N_ELEMENTS; j++) substrings[j].push(stack);
+				for (j=index+1; j<N_ELEMENTS; j++) substrings[j].push(stack,null);
 			}
 
 /*			// Testing $skip$
@@ -1050,6 +1050,8 @@ if (str.equals("000")) {
  				stringString+=""+c;
  				string.push(c);
  			}
+//stringString="2131313";
+//for (j=0; j<stringString.length(); j++) string.push(Integer.parseInt(stringString.substring(j,j+1)));
 
 			// Trivial enumeration of all distinct right-maximal substrings
 			boolean isRightMaximal;
@@ -1082,11 +1084,18 @@ if (str.equals("000")) {
 //System.out.println("Trivial enumeration completed: "+trueSubstringsArray.length+" distinct right-maximal strings:");
 //for (int x=0; x<trueSubstringsArray.length; x++) System.out.println(trueSubstringsArray[x]);
 
+// Building BWT for reporting
+/*IntArray bwt = new IntArray(STRING_LENGTH+1,2,true);
+sharpPosition=(int)(Suffixes.blockwiseBWT(string,alphabet,4,2,2,bwt,null,null,null,null,null));
+System.out.print("BWT: ");
+for (int x=0; x<STRING_LENGTH+1; x++) System.out.print(bwt.getElementAt(x)+"");
+System.out.println();
+*/
 			// Running $SubstringIterator$
 			Constants.N_THREADS=2;
 			Constants.MAX_MEMORY=10;
 			iteratorSubstrings = new HashSet<String>();
-			iterator = new SubstringIterator(string,alphabet,4,new TestRightMaximalSubstring(4,2,STRING_LENGTH+1,Utils.log2(STRING_LENGTH+1),stringString));
+			iterator = new SubstringIterator(string,alphabet,4,new TestRightMaximalSubstring(4,Utils.log2(4),Utils.bitsToEncode(2),STRING_LENGTH+1,Utils.log2(STRING_LENGTH+1),Utils.bitsToEncode(STRING_LENGTH+1),stringString));
 			System.out.print("(");
 			iterator.run();
 			System.out.print(")");
@@ -1124,17 +1133,17 @@ if (str.equals("000")) {
 	private static class TestRightMaximalSubstring extends RightMaximalSubstring {
 		private String text;
 
-		public TestRightMaximalSubstring(int alphabetLength, int log2alphabetLength, long bwtLength, int log2bwtLength, String text) {
-			super(alphabetLength,log2alphabetLength,bwtLength,log2bwtLength);
+		public TestRightMaximalSubstring(int alphabetLength, int log2alphabetLength, int bitsToEncodeAlphabetLength, long bwtLength, int log2BWTLength, int bitsToEncodeBWTLength, String text) {
+			super(alphabetLength,log2alphabetLength,bitsToEncodeAlphabetLength,bwtLength,log2BWTLength,bitsToEncodeBWTLength);
 			this.text=text;
 		}
 
 		protected Substring getInstance() {
-			return new TestRightMaximalSubstring(alphabetLength,log2alphabetLength,bwtLength,log2bwtLength,text);
+			return new TestRightMaximalSubstring(alphabetLength,log2alphabetLength,bitsToEncodeAlphabetLength,bwtLength,log2BWTLength,bitsToEncodeBWTLength,text);
 		}
 
-		protected void visited(Stream stack, RigidStream characterStack, SimpleStream pointerStack, Substring[] leftExtensions) {
-			super.visited(stack,characterStack,pointerStack,leftExtensions);
+		protected void visited(Stream stack, RigidStream characterStack, SimpleStream pointerStack, Substring[] cache, Substring[] leftExtensions) {
+			super.visited(stack,characterStack,pointerStack,cache,leftExtensions);
 			if (length>bwtLength) {
 				System.err.println("ERROR: GENERATED A RIGHT-MAXIMAL SUBSTRING LONGER THAN THE TEXT PLUS ONE: (length="+length+")");
 				System.err.println("text: "+text);
@@ -1155,6 +1164,17 @@ for (int x=0; x<=alphabetLength; x++) {
 }
 System.out.println();
 */
+
+if (str.equals("31313") || str.equals("1313") || str.equals("313") || str.equals("13") || str.equals("3")) {
+	System.out.print("string "+str+" ");
+	computeRightContext();
+	System.out.println("rightContext="+rightContext+" frequency="+frequency());
+	System.out.println("bwtIntervals:");
+	for (int x=0; x<5; x++) {
+		System.out.println(bwtIntervals[x][0]+" "+bwtIntervals[x][1]);
+	}
+}
+
 			// Adding $\epsilon$
 			if (length==0) {
 				synchronized(iteratorSubstrings) { iteratorSubstrings.add(""); }
@@ -1197,8 +1217,6 @@ System.out.println();
  				stringString+=""+c;
  				string.push(c);
  			}
-//System.out.print("String: "); string.print();
-//System.out.println();
 
 			// Trivial enumeration of all distinct substrings
 			trueSubstrings = new HashSet<String>();
@@ -1255,7 +1273,7 @@ System.out.println();
 			Constants.N_THREADS=2;
 			Constants.MAX_MEMORY=10;
 			iteratorSubstrings = new HashSet<String>();
-			iterator = new SubstringIterator(string,alphabet,4,new TestSubstring(4,2,STRING_LENGTH+1,Utils.log2(STRING_LENGTH+1),stringString));
+			iterator = new SubstringIterator(string,alphabet,4,new TestSubstring(4,Utils.log2(4),Utils.bitsToEncode(4),STRING_LENGTH+1,Utils.log2(STRING_LENGTH+1),Utils.bitsToEncode(STRING_LENGTH+1),stringString));
 			System.out.print("(");
 			iterator.run();
 			System.out.print(")");
@@ -1293,17 +1311,17 @@ System.out.println();
 	private static class TestSubstring extends Substring {
 		private String text;
 
-		public TestSubstring(int alphabetLength, int log2alphabetLength, long bwtLength, int log2bwtLength, String text) {
-			super(alphabetLength,log2alphabetLength,bwtLength,log2bwtLength);
+		public TestSubstring(int alphabetLength, int log2alphabetLength, int bitsToEncodeAlphabetLength, long bwtLength, int log2BWTLength, int bitsToEncodeBWTLength, String text) {
+			super(alphabetLength,log2alphabetLength,bitsToEncodeAlphabetLength,bwtLength,log2BWTLength,bitsToEncodeBWTLength);
 			this.text=text;
 		}
 
 		protected Substring getInstance() {
-			return new TestSubstring(alphabetLength,log2alphabetLength,bwtLength,log2bwtLength,text);
+			return new TestSubstring(alphabetLength,log2alphabetLength,bitsToEncodeAlphabetLength,bwtLength,log2BWTLength,bitsToEncodeBWTLength,text);
 		}
 
-		protected void init(Substring suffix, int firstCharacter, Stream stack, RigidStream characterStack, SimpleStream pointerStack, long[] buffer) {
-			super.init(suffix,firstCharacter,stack,characterStack,pointerStack,buffer);
+		protected void initAfterExtending(Substring suffix, int firstCharacter, RigidStream characterStack, int[] buffer) {
+			super.initAfterExtending(suffix,firstCharacter,characterStack,buffer);
 			if (length>bwtLength) {
 				System.err.println("ERROR: GENERATED A SUBSTRING LONGER THAN THE TEXT PLUS ONE: (length="+length+")");
 				System.err.println("text: "+text);
@@ -1329,13 +1347,13 @@ System.out.println();
 		final int N_TESTS = 1000;
 		int i, j, t, index;
 		long previous;
-		long[] extensionBuffer = new long[4+1];
+		int[] extensionBuffer = new int[4+1];
 		for (i=0; i<=4; i++) extensionBuffer[i]=-1;
 		Substring[] substrings = new Substring[N_ELEMENTS];
 		Stream stack = new Stream(512);
 		RigidStream characterStack = new RigidStream(2,2);
 		SimpleStream pointerStack = new SimpleStream(2);
-		Substring w = new Substring(4,2,N_ELEMENTS,Utils.log2(N_ELEMENTS));
+		Substring w = new Substring(4,Utils.log2(4),Utils.bitsToEncode(4),N_ELEMENTS+1,Utils.log2(N_ELEMENTS+1),Utils.bitsToEncode(N_ELEMENTS+1));
 		XorShiftStarRandom random = new XorShiftStarRandom();
 
 		for (t=0; t<N_ITERATIONS; t++) {
@@ -1343,31 +1361,31 @@ System.out.println();
 			stack.clear(true); stack.setPosition(0L);
 			characterStack.clear(true); pointerStack.clear(true);
 			substrings[0] = w.getEpsilon(new long[0]);
-			substrings[0].push(stack);
+			substrings[0].push(stack,null);
 			previous=0L;
 			for (i=1; i<N_ELEMENTS; i++) {
-				substrings[i] = new Substring(4,2,N_ELEMENTS,Utils.log2(N_ELEMENTS));
+				substrings[i] = new Substring(4,Utils.log2(4),Utils.bitsToEncode(4),N_ELEMENTS+1,Utils.log2(N_ELEMENTS+1),Utils.bitsToEncode(N_ELEMENTS+1));
 				substrings[i].bwtIntervals[0][0]=random.nextInt(N_ELEMENTS);
 				do { substrings[i].bwtIntervals[0][1]=random.nextInt(N_ELEMENTS); }
 				while (substrings[i].bwtIntervals[0][1]<substrings[i].bwtIntervals[0][0]);
-				substrings[i].stackPointers[1]=previous;
-				substrings[i].init(substrings[random.nextInt(i)],random.nextInt(4),stack,characterStack,pointerStack,extensionBuffer);
+				substrings[i].previousAddress=previous;
+				substrings[i].initAfterExtending(substrings[random.nextInt(i)],random.nextInt(4),characterStack,extensionBuffer);
 				substrings[i].hasBeenExtended=random.nextBoolean();
-				substrings[i].push(stack);
-				previous=substrings[i].stackPointers[0];
+				substrings[i].push(stack,null);
+				previous=substrings[i].address;
 			}
 
 			// Testing $read$
 			for (i=0; i<N_TESTS; i++) {
 				index=random.nextInt(N_ELEMENTS);
-				stack.setPosition(substrings[index].stackPointers[0]);
-				w.read(stack,false,false);
+				stack.setPosition(substrings[index].address);
+				w.read(stack,null,false,false,false);
 				if (w.frequency()==0||!w.equals(substrings[index])) {
 					System.err.println("Error in read");
 					return false;
 				}
-				stack.setPosition(substrings[index].stackPointers[0]);
-				w.read(stack,true,true);
+				stack.setPosition(substrings[index].address);
+				w.read(stack,null,true,true,true);
 				if (w.frequency()==0||!w.equals(substrings[index])) {
 					System.err.println("Error in readFast");
 					return false;
@@ -1377,19 +1395,19 @@ System.out.println();
 			// Testing $pop$
 			for (i=0; i<N_TESTS; i++) {
 				index=random.nextInt(N_ELEMENTS);
-				stack.setPosition(substrings[N_ELEMENTS-1].stackPointers[0]);
-				for (j=N_ELEMENTS-1; j>index; j--) substrings[j].pop(stack,false);
-				if (stack.getPosition()!=substrings[index].stackPointers[0]) {
+				stack.setPosition(substrings[N_ELEMENTS-1].address);
+				for (j=N_ELEMENTS-1; j>index; j--) substrings[j].pop(stack,null);
+				if (stack.getPosition()!=substrings[index].address) {
 					System.err.println("Error in pop");
 					return false;
 				}
-				w.read(stack,false,false);
+				w.read(stack,null,false,false,false);
 				if (!w.equals(substrings[index])) {
 					System.err.println("Error in pop");
 					return false;
 				}
 				// Pushing back the remaining substrings
-				for (j=index+1; j<N_ELEMENTS; j++) substrings[j].push(stack);
+				for (j=index+1; j<N_ELEMENTS; j++) substrings[j].push(stack,null);
 			}
 
 /*			// Testing $skip$
@@ -1408,9 +1426,9 @@ System.out.println();
 
 
 	private static final boolean test_stream() {
-		final int N_ELEMENTS = 10000;
+		final int N_ELEMENTS = 14782125;
 		final int N_ITERATIONS = 100;
-		final int MAX_INT = 100;
+		final int MAX_INT = 14782125;
 		int i, j, k, t, r, b, position, region, cell, offset;
 		int[] numbers = new int[N_ELEMENTS];
 		long nBits, read;

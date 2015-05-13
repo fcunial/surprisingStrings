@@ -76,7 +76,7 @@ public class Constants {
 	/**
 	 * Base-$e$ logarithm of the probability of each character in the alphabet
 	 */
-	public static double[] logProbabilities = new double[] {1/4,1/4,1/4,1/4};
+	public static double[] logProbabilities = new double[] {Math.log(1/4),Math.log(1/4),Math.log(1/4),Math.log(1/4)};
 
 	/**
 	 * Significantly greater than
@@ -86,6 +86,25 @@ public class Constants {
 	public static boolean TIGHT_POISSON_ERROR = true;
 
 
+
+
+
+	/**
+	 * Number of elements in the $Substring$ cache of a thread
+	 */
+	public static int CACHE_SIZE = 0;
+
+	/**
+	 * All substrings of length $<=BORDER_THRESHOLD_1$ are pushed in a cache rather than
+	 * in a stack.
+	 */
+	public static int BORDER_THRESHOLD_1 = -1;
+
+	/**
+	 * No substring of length $>BORDER_THRESHOLD_2$ is pushed, neither in a stack nor in
+	 * a cache.
+	 */
+	public static int BORDER_THRESHOLD_2 = Integer.MAX_VALUE;
 
 
 

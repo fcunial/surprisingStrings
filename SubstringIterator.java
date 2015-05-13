@@ -132,7 +132,7 @@ public class SubstringIterator {
 	 * cells, initialized to FALSE. This procedure restores the vector to its input
 	 * state before terminating.
 	 */
-	private final void extendLeft(Stream stack, RigidStream characterStack, SimpleStream pointerStack, Substring w, Substring[] leftExtensions, Position[] positions, long[][] multirankStack, long[][] multirankOutput, long[] multirankOnes, int maxStringLengthToReport, long[] out, long[] extensionBuffer, boolean[] shouldBeExtendedLeft) {
+	private final void extendLeft(Stream stack, RigidStream characterStack, SimpleStream pointerStack, Substring w, Substring[] leftExtensions, Position[] positions, long[][] multirankStack, long[][] multirankOutput, long[] multirankOnes, int maxStringLengthToReport, long[] out, int[] extensionBuffer, boolean[] shouldBeExtendedLeft, Substring[] cache) {
 		final boolean isShort;
 		boolean pushed;
 		int i, j, c, p, windowFirst, windowSize, block, previousBlock, nPositions, maxExtension;
@@ -141,10 +141,10 @@ public class SubstringIterator {
 
 		// Reading the top of $stack$
 		out[0]=0; out[1]=0; out[2]=0;
-		w.read(stack,true,true);
+		w.read(stack,cache,true,true,true);
 		while (w.hasBeenExtended || w.hasBeenStolen) {
-			previous=w.stackPointers[1];
-			w.pop(stack,false);
+			previous=w.previousAddress;
+			w.pop(stack,cache);
 			if (w.hasBeenExtended) {
 				characterStack.pop();
 				pointerStack.pop();
@@ -152,7 +152,7 @@ public class SubstringIterator {
 			out[0]--;
 			stack.setPosition(previous);
 			if (previous==0) return;
-			w.read(stack,true,true);
+			w.read(stack,cache,true,true,true);
 		}
 
 		// Putting the positions of $w.bwtIntervals$ in block order, and sequentially
@@ -208,11 +208,14 @@ public class SubstringIterator {
 			for (i=0; i<windowSize; i++) leftExtensions[c+1].bwtIntervals[positions[windowFirst+i].row][positions[windowFirst+i].column]=C[c]+(blockCounts[previousBlock].getElementAt(c)+multirankOutput[c][i])+(positions[windowFirst+i].column==0?0:-1);
 		}
 
-		// Initializing the left-extensions of $w$
+		// Initializing $w$
 		if (w.length>0) {
-			characterStack.push(w.firstCharacter);  // Needed for calls to $Substring.getSequence()$ inside $Substring.init()$ to be successful
-			pointerStack.push(w.stackPointers[0]);
+			characterStack.push(w.firstCharacter);
+			pointerStack.push(w.address);
 		}
+		w.initAfterReading(stack,characterStack,pointerStack,cache);
+
+		// Initializing the left-extensions of $w$
 		extension=null; pushed=false;
 		w.fillBuffer(extensionBuffer,true);
 		maxFrequency=0; maxExtension=-1;
@@ -220,7 +223,7 @@ public class SubstringIterator {
 			extension=leftExtensions[c];
 			frequency=extension.frequency();
 			if (frequency>0) {
-				extension.init(w,c-1,stack,characterStack,pointerStack,extensionBuffer);
+				extension.initAfterExtending(w,c-1,characterStack,extensionBuffer);
 				if (extension.shouldBeExtendedLeft()) {
 					pushed=true;
 					shouldBeExtendedLeft[c]=true;
@@ -233,22 +236,24 @@ public class SubstringIterator {
 		}
 		w.emptyBuffer(extensionBuffer,true);
 
-		// Visiting $w$ and popping it from $stack$
-		w.visited(stack,characterStack,pointerStack,leftExtensions);
-		w.pop(stack,true);  // Removing TAIL and TAIL' from the stack
+		// Visiting $w$, popping TAIL and TAIL', and pushing APPENDIX.
+		w.visited(stack,characterStack,pointerStack,cache,leftExtensions);
 		w.markAsExtended(stack);
+		w.popTails(stack,cache);
+		w.pushAppendix(stack,cache);
 		out[1]--;
 		if (w.length<=maxStringLengthToReport) out[2]--;
 
-		// Pushing the left-extensions of $w$ onto $stack$ using the stack trick
-		previous=w.stackPointers[0];
+		// Pushing the left-extensions of $w$ onto $stack$ using the stack trick described
+		// in \cite{belazzougui2013versatile}.
+		previous=w.address;
 		isShort=w.length+1<=maxStringLengthToReport;
 		if (pushed) {
 			// Pushing the most frequent left-extension first
 			extension=leftExtensions[maxExtension];
-			extension.stackPointers[1]=previous;
-			extension.push(stack);
-			previous=extension.stackPointers[0];
+			extension.previousAddress=previous;
+			extension.push(stack,cache);
+			previous=extension.address;
 			out[0]++; out[1]++;
 			if (isShort) out[2]++;
 			// Pushing all other left-extensions
@@ -257,9 +262,9 @@ public class SubstringIterator {
 					shouldBeExtendedLeft[c]=false;  // Cleaning up $shouldBeExtendedLeft$
 					if (c==maxExtension) continue;
 					extension=leftExtensions[c];
-					extension.stackPointers[1]=previous;
-					extension.push(stack);
-					previous=extension.stackPointers[0];
+					extension.previousAddress=previous;
+					extension.push(stack,cache);
+					previous=extension.address;
 					out[0]++; out[1]++;
 					if (isShort) out[2]++;
 				}
@@ -267,7 +272,7 @@ public class SubstringIterator {
 		}
 
 		// Resetting the top of the stack
-		stack.setPosition(pushed?previous:w.stackPointers[0]);
+		stack.setPosition(pushed?previous:w.address);
 	}
 
 
@@ -342,7 +347,7 @@ public class SubstringIterator {
 		// artificial string, except for the stacks of threads different from $threads[0]$
 		// immediately after their creation.
 		Substring epsilon = SUBSTRING_CLASS.getEpsilon(C);
-		epsilon.push(threads[0].stack);
+		epsilon.push(threads[0].stack,null);
 		threads[0].stack.setPosition(0);
 		epsilon.deallocate(); epsilon=null;
 		threads[0].nStrings=1;
@@ -356,6 +361,7 @@ public class SubstringIterator {
 			e.printStackTrace();
 			System.exit(1);
 		}
+		for (i=0; i<Constants.N_THREADS; i++) threads[i].deallocate();
 	}
 
 
@@ -393,16 +399,12 @@ public class SubstringIterator {
 	 */
 	protected class SubstringIteratorThread extends Thread {
 		/**
-		 * Number of stack pointers used by $Substring$ objects
-		 */
-		private final int MIN_POINTERS;
-
-		/**
 		 * Thread variables
 		 */
 		protected Stream stack;
 		protected RigidStream characterStack;
 		protected SimpleStream pointerStack;
+		protected Substring[] cache;
 		protected long nStrings;  // Total number of strings in $stack$
 		protected long nStringsNotExtended;  // Number of strings in $stack$ that have not been extended
 		protected long nShortStringsNotExtended;  // Number of strings in $stack$ that have not been extended, and that have length in $[1..MAX_STRING_LENGTH_FOR_SPLIT]$.
@@ -421,12 +423,9 @@ public class SubstringIterator {
 		private RigidStream donorCharacterStack;
 		private long donorStackLength;  // In bits
 		private long newStack_previousSubstringAddress;
-		private SimpleStream translatorFrom, translatorTo;  // Translate pointers of extended strings in $donorStack$ ($translatorFrom[i]$) to pointers of extended strings in the new (receiver) $stack$ ($translatorTo[i]$).
-		private long translator_last;  // Last element used in $translator*$
 
 
 		public SubstringIteratorThread(SubstringIteratorThread[] threads, int threadID, AtomicInteger donorGenerator, CountDownLatch latch) {
-			MIN_POINTERS=Substring.MIN_POINTERS;
 			this.threads=threads;
 			nThreads=threads.length;
 			this.threadID=threadID;
@@ -435,8 +434,8 @@ public class SubstringIterator {
 			stack = new Stream(Constants.LONGS_PER_REGION);
 			characterStack = new RigidStream(log2alphabetLength,Constants.LONGS_PER_REGION_CHARACTERSTACK);
 			pointerStack = new SimpleStream(Constants.LONGS_PER_REGION_POINTERSTACK);
-			translatorFrom = new SimpleStream(Constants.LONGS_PER_REGION_POINTERSTACK);
-			translatorTo = new SimpleStream(Constants.LONGS_PER_REGION_POINTERSTACK);
+			cache = new Substring[Constants.CACHE_SIZE];
+			for (int i=0; i<Constants.CACHE_SIZE; i++) cache[i]=SUBSTRING_CLASS.getInstance();
 		}
 
 
@@ -444,11 +443,14 @@ public class SubstringIterator {
 			stack.deallocate(); stack=null;
 			characterStack.deallocate(); characterStack=null;
 			pointerStack.deallocate(); pointerStack=null;
+			for (int i=0; i<Constants.CACHE_SIZE; i++) {
+				cache[i].deallocate();
+				cache[i]=null;
+			}
+			cache=null;
 			threads=null;
 			donor=null;
 			donorStack=null;
-			translatorFrom.deallocate(); translatorFrom=null;
-			translatorTo.deallocate(); translatorTo=null;
 		}
 
 
@@ -463,7 +465,7 @@ public class SubstringIterator {
 			long[][] multirankOutput = new long[alphabetLength][maxPositions];
 			long[] multirankOnes = new long[maxPositions];
 			long[] extendLeftOutput = new long[3];
-			long[] extensionBuffer = new long[alphabetLength+1];
+			int[] extensionBuffer = new int[alphabetLength+1];
 			for (i=0; i<=alphabetLength; i++) extensionBuffer[i]=-1;
 			boolean[] shouldBeExtendedLeft = new boolean[alphabetLength+1];
 			for (i=0; i<=alphabetLength; i++) shouldBeExtendedLeft[i]=false;
@@ -476,7 +478,7 @@ public class SubstringIterator {
 				while (true) {
 					synchronized(this) {
 						if (nStringsNotExtended>0) {
-							extendLeft(stack,characterStack,pointerStack,w,leftExtensions,positions,multirankStack,multirankOutput,multirankOnes,Constants.MAX_STRING_LENGTH_FOR_SPLIT,extendLeftOutput,extensionBuffer,shouldBeExtendedLeft);
+							extendLeft(stack,characterStack,pointerStack,w,leftExtensions,positions,multirankStack,multirankOutput,multirankOnes,Constants.MAX_STRING_LENGTH_FOR_SPLIT,extendLeftOutput,extensionBuffer,shouldBeExtendedLeft,cache);
 							nStrings+=extendLeftOutput[0];
 							nStringsNotExtended+=extendLeftOutput[1];
 							nShortStringsNotExtended+=extendLeftOutput[2];
@@ -490,13 +492,6 @@ public class SubstringIterator {
 			// Terminating if unable to steal work
 			isAlive=false;
 			latch.countDown();
-			for (i=0; i<alphabetLength+1; i++) {
-				leftExtensions[i].deallocate();
-				leftExtensions[i]=null;
-			}
-			for (i=0; i<maxPositions; i++) positions[i]=null;
-			w.deallocate();
-			deallocate();
 		}
 
 
@@ -528,20 +523,18 @@ public class SubstringIterator {
 					nStringsNotExtended=0;
 					nShortStringsNotExtended=0;
 					newStack_previousSubstringAddress=0;
-					translatorFrom.clear(false);  // Avoids reallocation
-					translatorTo.clear(false);  // Avoids reallocation
-					translator_last=-1;
 					toBeCopied=donor.nShortStringsNotExtended>>1;
 					copied=0;
 					long backupPointer = donorStack.getPosition();
 					donorStack.setPosition(0);
 					while (copied<toBeCopied) {
-						w.read(donorStack,false,true);
+						w.read(donorStack,null,false,true,false);
 						if (!w.hasBeenExtended && !w.hasBeenStolen) copied++;
 						if (!w.hasBeenStolen) copy(w);
 					}
 					stack.setPosition(newStack_previousSubstringAddress);
 					donorStack.setPosition(backupPointer);
+					for (j=0; j<Constants.CACHE_SIZE; j++) donor.cache[j].clone(cache[j]);
 					return;
 				}
 			}
@@ -555,35 +548,25 @@ public class SubstringIterator {
 		 * out and discarded by $extendLeft$.
 		 */
 		private final void copy(Substring w) {
-			if (w.hasBeenExtended) {
-				translator_last++;
-				translatorFrom.push(w.stackPointers[0]);
-			}
-			else {
+			if (!w.hasBeenExtended) {
 				w.markAsStolen(donorStack);
 				donor.nStringsNotExtended--;
 				donor.nShortStringsNotExtended--;
 			}
-			for (int i=MIN_POINTERS; i<w.nPointers; i++) {
-				if (w.stackPointers[i]==0) continue;
-				if (w.stackPointers[i]==w.stackPointers[0]) w.stackPointers[i]=-1;  // This will be converted into the new correct value by $Substring.push$
-				else w.stackPointers[i]=translatorTo.getElementAt(translatorFrom.binarySearch(0,w.hasBeenExtended?translator_last:translator_last+1,w.stackPointers[i]));
-			}
-			w.stackPointers[1]=newStack_previousSubstringAddress;
-			w.push(stack);
+			w.previousAddress=newStack_previousSubstringAddress;
+			w.push(stack,null);  // Not altering the cache
 			nStrings++;
 			if (w.hasBeenExtended) {
-				translatorTo.push(w.stackPointers[0]);
 				if (w.length>0) {
 					characterStack.push(donorCharacterStack.getElementAt(w.length-1));
-					pointerStack.push(w.stackPointers[0]);
+					pointerStack.push(w.address);
 				}
 			}
 			else {
 				nStringsNotExtended++;
 				nShortStringsNotExtended++;
 			}
-			newStack_previousSubstringAddress=w.stackPointers[0];
+			newStack_previousSubstringAddress=w.address;
 		}
 
 	}  // SubstringIteratorThread

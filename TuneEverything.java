@@ -28,7 +28,7 @@ public class TuneEverything {
 			e.printStackTrace();
 			System.exit(1);
 		}
-		w = new BernoulliSubstring(4,2,string.length(),Utils.log2(string.length()));
+		w = new BernoulliSubstring(4,Utils.log2(4),Utils.bitsToEncode(4),string.length()+1,Utils.log2(string.length()+1),Utils.bitsToEncode(string.length()+1));
 		iterator = new SubstringIterator(string,alphabet,alphabet.length,w);
 
 		// LONGS_PER_REGION

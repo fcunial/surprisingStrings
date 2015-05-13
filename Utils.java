@@ -255,6 +255,22 @@ public class Utils {
 		return out;
 	}
 
+
+	public static final void shuffle(IntArray string) {
+		int i, j, tmp;
+		int length = (int)string.length();
+		XorShiftStarRandom random = new XorShiftStarRandom();
+		for (i=0; i<length-1; i++) {
+			j=random.nextInt(length-i);
+			if (j!=0) {
+				tmp=(int)string.getElementAt(i);
+				string.setElementAt(i,string.getElementAt(i+j));
+				string.setElementAt(i+j,tmp);
+			}
+		}
+	}
+
+
 	/*
 	private static final void printDNA(IntArray string) {
 		int i, n, c;
